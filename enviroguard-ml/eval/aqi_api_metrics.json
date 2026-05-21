@@ -1,0 +1,9 @@
+{
+  "mae": 11.557727027286003,
+  "r2": 0.3719201515059254,
+  "mape": 26.27269602991525,
+  "accuracy_pct": 73.72730397008475,
+  "train_samples": 55,
+  "test_samples": 14,
+  "model_type": "GradientBoosting_Advanced_Features"
+}

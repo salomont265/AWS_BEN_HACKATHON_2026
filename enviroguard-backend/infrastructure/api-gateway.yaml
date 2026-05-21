@@ -1,0 +1,713 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'EnviroGuard API Gateway - REST API connecting mobile app to Lambda functions'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+    Description: Deployment environment
+
+  StageName:
+    Type: String
+    Default: dev
+    Description: API Gateway stage name (appears in URL)
+
+  ProjectName:
+    Type: String
+    Default: enviroguard
+    Description: Project name for resource naming
+
+  # Lambda Function ARNs (required parameters)
+  GetStationsLambdaArn:
+    Type: String
+    Description: ARN of getStations Lambda function
+    Default: ''
+
+  GetReadingsLambdaArn:
+    Type: String
+    Description: ARN of getReadings Lambda function
+    Default: ''
+
+  GetPredictionsLambdaArn:
+    Type: String
+    Description: ARN of getPredictions Lambda function
+    Default: ''
+
+  GetAlertsLambdaArn:
+    Type: String
+    Description: ARN of getAlerts Lambda function
+    Default: ''
+
+  CreateAlertLambdaArn:
+    Type: String
+    Description: ARN of createAlert Lambda function
+    Default: ''
+
+  GetReportsLambdaArn:
+    Type: String
+    Description: ARN of getReports Lambda function
+    Default: ''
+
+  SubmitReportLambdaArn:
+    Type: String
+    Description: ARN of submitReport Lambda function
+    Default: ''
+
+  GetReportDetailsLambdaArn:
+    Type: String
+    Description: ARN of getReportDetails Lambda function
+    Default: ''
+
+  GetPostsLambdaArn:
+    Type: String
+    Description: ARN of getPosts Lambda function
+    Default: ''
+
+  CreatePostLambdaArn:
+    Type: String
+    Description: ARN of createPost Lambda function
+    Default: ''
+
+  GenerateLetterLambdaArn:
+    Type: String
+    Description: ARN of generateLetter Lambda function
+    Default: ''
+
+  GetUserProfileLambdaArn:
+    Type: String
+    Description: ARN of getUserProfile Lambda function
+    Default: ''
+
+  UpdateUserProfileLambdaArn:
+    Type: String
+    Description: ARN of updateUserProfile Lambda function
+    Default: ''
+
+  # Optional: Cognito for authentication
+  CognitoUserPoolArn:
+    Type: String
+    Description: (Optional) Cognito User Pool ARN for JWT authentication
+    Default: ''
+
+Conditions:
+  HasCognito: !Not [!Equals [!Ref CognitoUserPoolArn, '']]
+  IsProduction: !Equals [!Ref Environment, prod]
+  HasGetStations: !Not [!Equals [!Ref GetStationsLambdaArn, '']]
+  HasGetReadings: !Not [!Equals [!Ref GetReadingsLambdaArn, '']]
+  HasGetPredictions: !Not [!Equals [!Ref GetPredictionsLambdaArn, '']]
+  HasGetAlerts: !Not [!Equals [!Ref GetAlertsLambdaArn, '']]
+  HasCreateAlert: !Not [!Equals [!Ref CreateAlertLambdaArn, '']]
+  HasGetReports: !Not [!Equals [!Ref GetReportsLambdaArn, '']]
+  HasSubmitReport: !Not [!Equals [!Ref SubmitReportLambdaArn, '']]
+  HasGetReportDetails: !Not [!Equals [!Ref GetReportDetailsLambdaArn, '']]
+  HasGetPosts: !Not [!Equals [!Ref GetPostsLambdaArn, '']]
+  HasCreatePost: !Not [!Equals [!Ref CreatePostLambdaArn, '']]
+  HasGenerateLetter: !Not [!Equals [!Ref GenerateLetterLambdaArn, '']]
+  HasGetUserProfile: !Not [!Equals [!Ref GetUserProfileLambdaArn, '']]
+  HasUpdateUserProfile: !Not [!Equals [!Ref UpdateUserProfileLambdaArn, '']]
+
+Resources:
+  # ========================================
+  # REST API
+  # ========================================
+  RestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: !Sub '${ProjectName}-api-${Environment}'
+      Description: EnviroGuard Backend REST API
+      EndpointConfiguration:
+        Types:
+          - REGIONAL
+      Tags:
+        - Key: Project
+          Value: EnviroGuard
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ========================================
+  # COGNITO AUTHORIZER (Optional)
+  # ========================================
+  CognitoAuthorizer:
+    Type: AWS::ApiGateway::Authorizer
+    Condition: HasCognito
+    Properties:
+      Name: !Sub '${ProjectName}-cognito-authorizer'
+      Type: COGNITO_USER_POOLS
+      IdentitySource: method.request.header.Authorization
+      RestApiId: !Ref RestApi
+      ProviderARNs:
+        - !Ref CognitoUserPoolArn
+
+  # ========================================
+  # API RESOURCES (URL Paths)
+  # ========================================
+
+  # /stations
+  StationsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !GetAtt RestApi.RootResourceId
+      PathPart: stations
+
+  # /readings/{station_id}
+  ReadingsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !GetAtt RestApi.RootResourceId
+      PathPart: readings
+
+  ReadingsStationIdResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !Ref ReadingsResource
+      PathPart: '{station_id}'
+
+  # /predict
+  PredictResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !GetAtt RestApi.RootResourceId
+      PathPart: predict
+
+  # /alerts
+  AlertsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !GetAtt RestApi.RootResourceId
+      PathPart: alerts
+
+  # /reports
+  ReportsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !GetAtt RestApi.RootResourceId
+      PathPart: reports
+
+  # /reports/{report_id}
+  ReportsIdResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !Ref ReportsResource
+      PathPart: '{report_id}'
+
+  # /posts
+  PostsResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !GetAtt RestApi.RootResourceId
+      PathPart: posts
+
+  # /generate-letter
+  GenerateLetterResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !GetAtt RestApi.RootResourceId
+      PathPart: generate-letter
+
+  # /users/{user_id}
+  UsersResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !GetAtt RestApi.RootResourceId
+      PathPart: users
+
+  UsersIdResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref RestApi
+      ParentId: !Ref UsersResource
+      PathPart: '{user_id}'
+
+  # ========================================
+  # METHODS & LAMBDA INTEGRATIONS
+  # ========================================
+
+  # GET /stations (Public)
+  GetStationsMethod:
+    Type: AWS::ApiGateway::Method
+    Condition: HasGetStations
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref StationsResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetStationsLambdaArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # GET /readings/{station_id} (Public)
+  GetReadingsMethod:
+    Type: AWS::ApiGateway::Method
+    Condition: HasGetReadings
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref ReadingsStationIdResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      RequestParameters:
+        method.request.path.station_id: true
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetReadingsLambdaArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # POST /predict (Protected)
+  PostPredictMethod:
+    Type: AWS::ApiGateway::Method
+    Condition: HasGetPredictions
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref PredictResource
+      HttpMethod: POST
+      AuthorizationType: !If [HasCognito, COGNITO_USER_POOLS, NONE]
+      AuthorizerId: !If [HasCognito, !Ref CognitoAuthorizer, !Ref AWS::NoValue]
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetPredictionsLambdaArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # GET /alerts (Protected)
+  GetAlertsMethod:
+    Type: AWS::ApiGateway::Method
+    Condition: HasGetAlerts
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref AlertsResource
+      HttpMethod: GET
+      AuthorizationType: !If [HasCognito, COGNITO_USER_POOLS, NONE]
+      AuthorizerId: !If [HasCognito, !Ref CognitoAuthorizer, !Ref AWS::NoValue]
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetAlertsLambdaArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # POST /alerts (Protected)
+  PostAlertsMethod:
+    Type: AWS::ApiGateway::Method
+    Condition: HasCreateAlert
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref AlertsResource
+      HttpMethod: POST
+      AuthorizationType: !If [HasCognito, COGNITO_USER_POOLS, NONE]
+      AuthorizerId: !If [HasCognito, !Ref CognitoAuthorizer, !Ref AWS::NoValue]
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CreateAlertLambdaArn}/invocations'
+      MethodResponses:
+        - StatusCode: 201
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # GET /reports (Protected)
+  GetReportsMethod:
+    Type: AWS::ApiGateway::Method
+    Condition: HasGetReports
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref ReportsResource
+      HttpMethod: GET
+      AuthorizationType: !If [HasCognito, COGNITO_USER_POOLS, NONE]
+      AuthorizerId: !If [HasCognito, !Ref CognitoAuthorizer, !Ref AWS::NoValue]
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetReportsLambdaArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # POST /reports (Protected)
+  PostReportsMethod:
+    Type: AWS::ApiGateway::Method
+    Condition: HasSubmitReport
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref ReportsResource
+      HttpMethod: POST
+      AuthorizationType: !If [HasCognito, COGNITO_USER_POOLS, NONE]
+      AuthorizerId: !If [HasCognito, !Ref CognitoAuthorizer, !Ref AWS::NoValue]
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${SubmitReportLambdaArn}/invocations'
+      MethodResponses:
+        - StatusCode: 201
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # GET /reports/{report_id} (Protected)
+  GetReportDetailsMethod:
+    Type: AWS::ApiGateway::Method
+    Condition: HasGetReportDetails
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref ReportsIdResource
+      HttpMethod: GET
+      AuthorizationType: !If [HasCognito, COGNITO_USER_POOLS, NONE]
+      AuthorizerId: !If [HasCognito, !Ref CognitoAuthorizer, !Ref AWS::NoValue]
+      RequestParameters:
+        method.request.path.report_id: true
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetReportDetailsLambdaArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # GET /posts (Public)
+  GetPostsMethod:
+    Type: AWS::ApiGateway::Method
+    Condition: HasGetPosts
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref PostsResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetPostsLambdaArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # POST /posts (Protected)
+  PostPostsMethod:
+    Type: AWS::ApiGateway::Method
+    Condition: HasCreatePost
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref PostsResource
+      HttpMethod: POST
+      AuthorizationType: !If [HasCognito, COGNITO_USER_POOLS, NONE]
+      AuthorizerId: !If [HasCognito, !Ref CognitoAuthorizer, !Ref AWS::NoValue]
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${CreatePostLambdaArn}/invocations'
+      MethodResponses:
+        - StatusCode: 201
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # POST /generate-letter (Protected)
+  PostGenerateLetterMethod:
+    Type: AWS::ApiGateway::Method
+    Condition: HasGenerateLetter
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref GenerateLetterResource
+      HttpMethod: POST
+      AuthorizationType: !If [HasCognito, COGNITO_USER_POOLS, NONE]
+      AuthorizerId: !If [HasCognito, !Ref CognitoAuthorizer, !Ref AWS::NoValue]
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GenerateLetterLambdaArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # GET /users/{user_id} (Protected)
+  GetUserProfileMethod:
+    Type: AWS::ApiGateway::Method
+    Condition: HasGetUserProfile
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref UsersIdResource
+      HttpMethod: GET
+      AuthorizationType: !If [HasCognito, COGNITO_USER_POOLS, NONE]
+      AuthorizerId: !If [HasCognito, !Ref CognitoAuthorizer, !Ref AWS::NoValue]
+      RequestParameters:
+        method.request.path.user_id: true
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${GetUserProfileLambdaArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # PUT /users/{user_id} (Protected)
+  PutUserProfileMethod:
+    Type: AWS::ApiGateway::Method
+    Condition: HasUpdateUserProfile
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref UsersIdResource
+      HttpMethod: PUT
+      AuthorizationType: !If [HasCognito, COGNITO_USER_POOLS, NONE]
+      AuthorizerId: !If [HasCognito, !Ref CognitoAuthorizer, !Ref AWS::NoValue]
+      RequestParameters:
+        method.request.path.user_id: true
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${UpdateUserProfileLambdaArn}/invocations'
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # ========================================
+  # CORS OPTIONS METHODS (Pre-flight)
+  # ========================================
+  StationsOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref StationsResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  PredictOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref PredictResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  ReportsOptionsMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref RestApi
+      ResourceId: !Ref ReportsResource
+      HttpMethod: OPTIONS
+      AuthorizationType: NONE
+      Integration:
+        Type: MOCK
+        RequestTemplates:
+          application/json: '{"statusCode": 200}'
+        IntegrationResponses:
+          - StatusCode: 200
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'GET,POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+            ResponseTemplates:
+              application/json: ''
+      MethodResponses:
+        - StatusCode: 200
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # ========================================
+  # LAMBDA PERMISSIONS
+  # Allow API Gateway to invoke Lambda functions
+  # ========================================
+  GetStationsLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Condition: HasGetStations
+    Properties:
+      FunctionName: !Ref GetStationsLambdaArn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApi}/*/*/*'
+
+  GetReadingsLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Condition: HasGetReadings
+    Properties:
+      FunctionName: !Ref GetReadingsLambdaArn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApi}/*/*/*'
+
+  GetPredictionsLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Condition: HasGetPredictions
+    Properties:
+      FunctionName: !Ref GetPredictionsLambdaArn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApi}/*/*/*'
+
+  SubmitReportLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Condition: HasSubmitReport
+    Properties:
+      FunctionName: !Ref SubmitReportLambdaArn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${RestApi}/*/*/*'
+
+  # ========================================
+  # DEPLOYMENT & STAGE
+  # ========================================
+  ApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - GetStationsMethod
+      - PostPredictMethod
+      - PostReportsMethod
+      - StationsOptionsMethod
+      - PredictOptionsMethod
+      - ReportsOptionsMethod
+    Properties:
+      RestApiId: !Ref RestApi
+      Description: !Sub 'Deployment for ${Environment} environment'
+
+  ApiStage:
+    Type: AWS::ApiGateway::Stage
+    Properties:
+      RestApiId: !Ref RestApi
+      DeploymentId: !Ref ApiDeployment
+      StageName: !Ref StageName
+      Description: !Sub '${Environment} stage'
+      TracingEnabled: !If [IsProduction, true, false]
+      MethodSettings:
+        - ResourcePath: '/*'
+          HttpMethod: '*'
+          LoggingLevel: INFO
+          DataTraceEnabled: !If [IsProduction, false, true]
+          MetricsEnabled: true
+          ThrottlingBurstLimit: 100
+          ThrottlingRateLimit: 50
+      Tags:
+        - Key: Project
+          Value: EnviroGuard
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ========================================
+  # USAGE PLAN (Rate Limiting)
+  # ========================================
+  UsagePlan:
+    Type: AWS::ApiGateway::UsagePlan
+    DependsOn:
+      - ApiStage
+    Properties:
+      UsagePlanName: !Sub '${ProjectName}-usage-plan-${Environment}'
+      Description: Standard usage plan with throttling
+      ApiStages:
+        - ApiId: !Ref RestApi
+          Stage: !Ref StageName
+      Throttle:
+        BurstLimit: 200
+        RateLimit: 100
+      Quota:
+        Limit: 100000
+        Period: DAY
+
+Outputs:
+  ApiId:
+    Description: API Gateway ID
+    Value: !Ref RestApi
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiId'
+
+  ApiUrl:
+    Description: API Gateway endpoint URL
+    Value: !Sub 'https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}'
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiUrl'
+
+  StageName:
+    Description: API Gateway stage name
+    Value: !Ref StageName
+
+  DeploymentSummary:
+    Description: Deployment summary
+    Value: !Sub |
+      EnviroGuard API Gateway Deployed Successfully
+      Environment: ${Environment}
+      Stage: ${StageName}
+      API URL: https://${RestApi}.execute-api.${AWS::Region}.amazonaws.com/${StageName}
+
+      Next Steps:
+      1. Update mobile app .env: EXPO_PUBLIC_API_BASE_URL=<API URL>
+      2. Deploy Lambda functions if not already deployed
+      3. Test endpoints: curl <API URL>/stations
+
+      Endpoints configured: 13
+      - GET /stations (public)
+      - GET /readings/{station_id} (public)
+      - POST /predict (protected)
+      - GET /alerts (protected)
+      - POST /alerts (protected)
+      - GET /reports (protected)
+      - POST /reports (protected)
+      - GET /reports/{report_id} (protected)
+      - GET /posts (public)
+      - POST /posts (protected)
+      - POST /generate-letter (protected)
+      - GET /users/{user_id} (protected)
+      - PUT /users/{user_id} (protected)

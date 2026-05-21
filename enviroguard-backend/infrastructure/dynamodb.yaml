@@ -1,0 +1,396 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'EnviroGuard DynamoDB Tables - Complete database infrastructure for mobile app backend'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+    Description: Deployment environment
+
+  BillingMode:
+    Type: String
+    Default: PAY_PER_REQUEST
+    AllowedValues:
+      - PAY_PER_REQUEST
+      - PROVISIONED
+    Description: DynamoDB billing mode (On-Demand recommended for dev)
+
+  ProjectName:
+    Type: String
+    Default: enviroguard
+    Description: Project name for table prefix
+
+Resources:
+  # ========================================
+  # 1. STATIONS TABLE
+  # Stores sensor station locations and metadata
+  # ========================================
+  StationsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${ProjectName}-stations'
+      BillingMode: !Ref BillingMode
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: status
+          AttributeType: S
+        - AttributeName: installedAt
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: status-installedAt-index
+          KeySchema:
+            - AttributeName: status
+              KeyType: HASH
+            - AttributeName: installedAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: Project
+          Value: EnviroGuard
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: CloudFormation
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: !If [IsProduction, true, false]
+    DeletionPolicy: !If [IsProduction, Retain, Delete]
+    UpdateReplacePolicy: !If [IsProduction, Retain, Delete]
+
+  # ========================================
+  # 2. SENSOR READINGS TABLE
+  # Time-series sensor data with TTL
+  # ========================================
+  SensorReadingsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${ProjectName}-sensor_readings'
+      BillingMode: !Ref BillingMode
+      AttributeDefinitions:
+        - AttributeName: stationId
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: S
+      KeySchema:
+        - AttributeName: stationId
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        - IndexName: timestamp-index
+          KeySchema:
+            - AttributeName: timestamp
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      Tags:
+        - Key: Project
+          Value: EnviroGuard
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: DataRetention
+          Value: 90days
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: !If [IsProduction, true, false]
+    DeletionPolicy: !If [IsProduction, Retain, Delete]
+    UpdateReplacePolicy: !If [IsProduction, Retain, Delete]
+
+  # ========================================
+  # 3. HAZARD REPORTS TABLE
+  # User-submitted reports with Claude analysis
+  # ========================================
+  HazardReportsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${ProjectName}-hazard_reports'
+      BillingMode: !Ref BillingMode
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: createdAt
+          AttributeType: S
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: status
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+        - AttributeName: createdAt
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        # GSI for querying by user
+        - IndexName: userId-createdAt-index
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        # GSI for querying by status
+        - IndexName: status-createdAt-index
+          KeySchema:
+            - AttributeName: status
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: Project
+          Value: EnviroGuard
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ContainsUserData
+          Value: 'true'
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: !If [IsProduction, true, false]
+    DeletionPolicy: !If [IsProduction, Retain, Delete]
+    UpdateReplacePolicy: !If [IsProduction, Retain, Delete]
+
+  # ========================================
+  # 4. USERS TABLE
+  # User profiles with health settings
+  # ========================================
+  UsersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${ProjectName}-users'
+      BillingMode: !Ref BillingMode
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: email
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        # GSI for login by email
+        - IndexName: email-index
+          KeySchema:
+            - AttributeName: email
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: Project
+          Value: EnviroGuard
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ContainsUserData
+          Value: 'true'
+        - Key: ContainsPII
+          Value: 'true'
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+
+  # ========================================
+  # 5. POSTS TABLE
+  # Community posts and events
+  # ========================================
+  PostsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${ProjectName}-posts'
+      BillingMode: !Ref BillingMode
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: createdAt
+          AttributeType: S
+        - AttributeName: type
+          AttributeType: S
+        - AttributeName: userId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+        - AttributeName: createdAt
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        # GSI for querying by post type (post vs event)
+        - IndexName: type-createdAt-index
+          KeySchema:
+            - AttributeName: type
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+        # GSI for querying user's posts
+        - IndexName: userId-createdAt-index
+          KeySchema:
+            - AttributeName: userId
+              KeyType: HASH
+            - AttributeName: createdAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: Project
+          Value: EnviroGuard
+        - Key: Environment
+          Value: !Ref Environment
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: !If [IsProduction, true, false]
+    DeletionPolicy: !If [IsProduction, Retain, Delete]
+    UpdateReplacePolicy: !If [IsProduction, Retain, Delete]
+
+  # ========================================
+  # 6. ALERTS TABLE
+  # User alert history with TTL
+  # ========================================
+  AlertsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub '${ProjectName}-alerts'
+      BillingMode: !Ref BillingMode
+      AttributeDefinitions:
+        - AttributeName: userId
+          AttributeType: S
+        - AttributeName: timestamp
+          AttributeType: S
+        - AttributeName: resolved
+          AttributeType: S
+      KeySchema:
+        - AttributeName: userId
+          KeyType: HASH
+        - AttributeName: timestamp
+          KeyType: RANGE
+      GlobalSecondaryIndexes:
+        # GSI for querying resolved/unresolved alerts
+        - IndexName: resolved-timestamp-index
+          KeySchema:
+            - AttributeName: resolved
+              KeyType: HASH
+            - AttributeName: timestamp
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      Tags:
+        - Key: Project
+          Value: EnviroGuard
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: DataRetention
+          Value: 30days
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: !If [IsProduction, true, false]
+    DeletionPolicy: !If [IsProduction, Retain, Delete]
+    UpdateReplacePolicy: !If [IsProduction, Retain, Delete]
+
+# ========================================
+# CONDITIONS
+# ========================================
+Conditions:
+  IsProduction: !Equals [!Ref Environment, prod]
+
+# ========================================
+# OUTPUTS
+# Export table names and ARNs for Lambda functions
+# ========================================
+Outputs:
+  StationsTableName:
+    Description: Stations table name
+    Value: !Ref StationsTable
+    Export:
+      Name: !Sub '${AWS::StackName}-StationsTable'
+
+  StationsTableArn:
+    Description: Stations table ARN
+    Value: !GetAtt StationsTable.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-StationsTableArn'
+
+  SensorReadingsTableName:
+    Description: Sensor readings table name
+    Value: !Ref SensorReadingsTable
+    Export:
+      Name: !Sub '${AWS::StackName}-SensorReadingsTable'
+
+  SensorReadingsTableArn:
+    Description: Sensor readings table ARN
+    Value: !GetAtt SensorReadingsTable.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-SensorReadingsTableArn'
+
+  HazardReportsTableName:
+    Description: Hazard reports table name
+    Value: !Ref HazardReportsTable
+    Export:
+      Name: !Sub '${AWS::StackName}-HazardReportsTable'
+
+  HazardReportsTableArn:
+    Description: Hazard reports table ARN
+    Value: !GetAtt HazardReportsTable.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-HazardReportsTableArn'
+
+  UsersTableName:
+    Description: Users table name
+    Value: !Ref UsersTable
+    Export:
+      Name: !Sub '${AWS::StackName}-UsersTable'
+
+  UsersTableArn:
+    Description: Users table ARN
+    Value: !GetAtt UsersTable.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-UsersTableArn'
+
+  PostsTableName:
+    Description: Posts table name
+    Value: !Ref PostsTable
+    Export:
+      Name: !Sub '${AWS::StackName}-PostsTable'
+
+  PostsTableArn:
+    Description: Posts table ARN
+    Value: !GetAtt PostsTable.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-PostsTableArn'
+
+  AlertsTableName:
+    Description: Alerts table name
+    Value: !Ref AlertsTable
+    Export:
+      Name: !Sub '${AWS::StackName}-AlertsTable'
+
+  AlertsTableArn:
+    Description: Alerts table ARN
+    Value: !GetAtt AlertsTable.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-AlertsTableArn'
+
+  # Summary output
+  DeploymentSummary:
+    Description: Deployment summary
+    Value: !Sub |
+      EnviroGuard DynamoDB Stack Deployed Successfully
+      Environment: ${Environment}
+      Billing Mode: ${BillingMode}
+      Tables Created: 6
+      - ${ProjectName}-stations
+      - ${ProjectName}-sensor_readings (TTL: 90 days)
+      - ${ProjectName}-hazard_reports
+      - ${ProjectName}-users
+      - ${ProjectName}-posts
+      - ${ProjectName}-alerts (TTL: 30 days)

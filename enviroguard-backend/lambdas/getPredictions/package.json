@@ -1,0 +1,18 @@
+{
+  "name": "get-predictions",
+  "version": "1.0.0",
+  "description": "Lambda function to get ML predictions from Prophet models",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {},
+  "keywords": [
+    "lambda",
+    "enviroguard",
+    "ml",
+    "predictions"
+  ],
+  "author": "EnviroGuard Team",
+  "license": "MIT"
+}
