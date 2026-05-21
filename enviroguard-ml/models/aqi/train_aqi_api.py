@@ -1,0 +1,84 @@
+"""
+Train Prophet model for AQI prediction (API mode)
+Uses weather regressors: temperature, humidity, wind_speed
+"""
+
+import pandas as pd
+import numpy as np
+from prophet import Prophet
+import pickle
+import json
+from sklearn.metrics import mean_absolute_error, mean_squared_error
+
+# Load data
+df = pd.read_csv('data/aqi_synthetic.csv')
+df['ds'] = pd.to_datetime(df['ds'])
+
+# 80/10 split (last 10% for testing)
+split_idx = int(len(df) * 0.9)
+train = df[:split_idx].copy()
+test = df[split_idx:].copy()
+
+print(f"Training on {len(train)} samples, testing on {len(test)} samples")
+print(f"Date range: {train['ds'].min()} to {train['ds'].max()}")
+
+# Initialize Prophet with regressors
+model = Prophet(
+    seasonality_mode='multiplicative',
+    daily_seasonality=True,
+    weekly_seasonality=True,
+    yearly_seasonality=False,
+    changepoint_prior_scale=0.05
+)
+
+# Add weather regressors
+model.add_regressor('temperature')
+model.add_regressor('humidity')
+model.add_regressor('wind_speed')
+
+# Fit model
+print("\nTraining AQI model...")
+model.fit(train[['ds', 'y', 'temperature', 'humidity', 'wind_speed']])
+
+# Make predictions on test set
+forecast = model.predict(test[['ds', 'temperature', 'humidity', 'wind_speed']])
+
+# Evaluate
+mae = mean_absolute_error(test['y'], forecast['yhat'])
+rmse = np.sqrt(mean_squared_error(test['y'], forecast['yhat']))
+
+print(f"\n{'='*60}")
+print(f"Model Performance:")
+print(f"  MAE:  {mae:.2f} AQI points (target: < 10)")
+print(f"  RMSE: {rmse:.2f} AQI points")
+print(f"{'='*60}")
+
+# Save model
+with open('models/aqi/aqi_api_model.pkl', 'wb') as f:
+    pickle.dump(model, f)
+print("\n✅ Model saved: models/aqi/aqi_api_model.pkl")
+
+# Save metrics
+metrics = {
+    'mae': float(mae),
+    'rmse': float(rmse),
+    'train_samples': len(train),
+    'test_samples': len(test),
+    'mean_aqi': float(df['y'].mean()),
+    'std_aqi': float(df['y'].std())
+}
+
+with open('eval/aqi_api_metrics.json', 'w') as f:
+    json.dump(metrics, f, indent=2)
+print("✅ Metrics saved: eval/aqi_api_metrics.json")
+
+# Save test predictions for visualization
+test_results = pd.DataFrame({
+    'ds': test['ds'],
+    'y_true': test['y'],
+    'y_pred': forecast['yhat'],
+    'yhat_lower': forecast['yhat_lower'],
+    'yhat_upper': forecast['yhat_upper']
+})
+test_results.to_csv('outputs/aqi_api_predictions.csv', index=False)
+print("✅ Test predictions saved: outputs/aqi_api_predictions.csv")
