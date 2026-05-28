@@ -1,0 +1,19 @@
+{
+  "name": "get-user-profile",
+  "version": "1.0.0",
+  "description": "Lambda function to retrieve user profile",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.0.0",
+    "@aws-sdk/lib-dynamodb": "^3.0.0"
+  },
+  "keywords": [
+    "lambda",
+    "enviroguard"
+  ],
+  "author": "EnviroGuard Team",
+  "license": "MIT"
+}

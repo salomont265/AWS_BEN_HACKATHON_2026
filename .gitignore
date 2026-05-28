@@ -1,2 +1,35 @@
+# Node.js
 node_modules/
 *.zip
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Environment
+.env
+.venv
+env/
+venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+*.log
+
+# Large API responses (366MB - too big for git)
+enviroguard-ml/data/raw_api_responses/
+
+# Claude settings
+.claude/

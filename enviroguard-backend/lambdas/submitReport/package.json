@@ -1,0 +1,24 @@
+{
+  "name": "submit-report",
+  "version": "1.0.0",
+  "description": "Lambda function to submit hazard reports with Claude Vision analysis",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.0.0",
+    "@aws-sdk/lib-dynamodb": "^3.0.0",
+    "@aws-sdk/client-s3": "^3.0.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.0.0"
+  },
+  "keywords": [
+    "lambda",
+    "enviroguard",
+    "bedrock",
+    "claude",
+    "vision"
+  ],
+  "author": "EnviroGuard Team",
+  "license": "MIT"
+}

@@ -1,0 +1,48 @@
+{
+  "expo": {
+    "name": "EnviroGuard",
+    "slug": "enviroguard",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0F6E56"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.enviroguard.app",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "EnviroGuard needs your location to show nearby environmental hazards and sensor stations.",
+        "NSCameraUsageDescription": "EnviroGuard needs camera access to take photos of environmental hazards for reporting.",
+        "NSPhotoLibraryUsageDescription": "EnviroGuard needs photo library access to attach images to hazard reports."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0F6E56"
+      },
+      "package": "com.enviroguard.app",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ],
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-location",
+      "expo-image-picker"
+    ]
+  }
+}

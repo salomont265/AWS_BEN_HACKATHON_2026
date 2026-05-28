@@ -1,0 +1,10 @@
+{
+  "mae": 4.148043509187456,
+  "rmse": 5.496894274828576,
+  "r2": 0.9077728789078434,
+  "mape": 11.712503877021788,
+  "accuracy_pct": 88.28749612297821,
+  "train_samples": 1397,
+  "test_samples": 247,
+  "model_type": "GradientBoosting_Seasonal"
+}

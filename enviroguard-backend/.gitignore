@@ -1,0 +1,80 @@
+# EnviroGuard Backend .gitignore
+
+# ========================================
+# Node.js
+# ========================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+
+# ========================================
+# Lambda Deployment Artifacts
+# ========================================
+*.zip
+function.zip
+**/function.zip
+lambdas/**/function.zip
+
+# ========================================
+# Environment & Secrets
+# ========================================
+.env
+.env.local
+.env.development
+.env.production
+.env.test
+*.pem
+*.key
+
+# AWS Credentials (NEVER commit these!)
+credentials
+config
+.aws/
+
+# ========================================
+# IDE & Editors
+# ========================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ========================================
+# Logs
+# ========================================
+*.log
+logs/
+*.log.*
+
+# ========================================
+# Testing
+# ========================================
+coverage/
+.nyc_output/
+*.test.js.snap
+
+# ========================================
+# Build Artifacts
+# ========================================
+dist/
+build/
+*.tgz
+
+# ========================================
+# Temporary Files
+# ========================================
+tmp/
+temp/
+*.tmp
+response.json
+output.json
+
+# ========================================
+# CloudFormation Stack Outputs
+# ========================================
+stack-outputs.json
+cf-output.json
