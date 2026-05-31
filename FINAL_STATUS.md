@@ -1,6 +1,6 @@
 # EnviroGuard Lambda Functions - Final Status Report
 **Date:** 2026-05-29  
-**Account:** 184976607466 (us-east-1)  
+**Account:** YOUR_AWS_ACCOUNT_ID (us-east-1)  
 **API Gateway:** https://w8r6o4jej0.execute-api.us-east-1.amazonaws.com/test1
 
 ---
@@ -163,10 +163,10 @@ curl -X POST .../petitions -H "Authorization: Bearer {TOKEN}" -d '{...}'
 
 ## 📂 FILES LOCATION
 
-- Lambda code: `/Users/salomon/awshackathon/AWS_BEN_HACKATHON_2026/{function}-fn/index.js`
-- Zip files: `/Users/salomon/awshackathon/AWS_BEN_HACKATHON_2026/lambda-zips/{function}-fn.zip`
-- Layer: `/Users/salomon/awshackathon/AWS_BEN_HACKATHON_2026/lambda-zips/dependencies-layer.zip`
-- Setup notes: `/Users/salomon/awshackathon/AWS_BEN_HACKATHON_2026/.SETUP_NOTES.md`
+- Lambda code: `/path/to/repo/{function}-fn/index.js`
+- Zip files: `/path/to/repo/lambda-zips/{function}-fn.zip`
+- Layer: `/path/to/repo/lambda-zips/dependencies-layer.zip`
+- Setup notes: `/path/to/repo/.SETUP_NOTES.md`
 
 ---
 

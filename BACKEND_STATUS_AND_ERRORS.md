@@ -181,7 +181,7 @@ ValidationException: One or more parameter values were invalid
 **Steps:**
 1. Open SNS console
 2. Create topic: `enviroguard-alerts`
-3. Copy ARN: `arn:aws:sns:us-east-1:184976607466:enviroguard-alerts`
+3. Copy ARN: `arn:aws:sns:us-east-1:YOUR_AWS_ACCOUNT_ID:enviroguard-alerts`
 4. Update Lambda environment variables:
    - posts-fn: `SNS_TOPIC_ARN=<arn>`
    - petitions-fn: `SNS_TOPIC_ARN=<arn>`
@@ -191,7 +191,7 @@ ValidationException: One or more parameter values were invalid
    {
      "Effect": "Allow",
      "Action": "sns:Publish",
-     "Resource": "arn:aws:sns:us-east-1:184976607466:enviroguard-alerts"
+     "Resource": "arn:aws:sns:us-east-1:YOUR_AWS_ACCOUNT_ID:enviroguard-alerts"
    }
    ```
 
@@ -473,7 +473,7 @@ AMBEE_API_KEY=<your-key>
 
 ### Lambda Function Locations:
 ```
-/Users/salomon/awshackathon/AWS_BEN_HACKATHON_2026/
+/path/to/repo/
 ├── users-fn/
 ├── posts-fn/
 ├── petitions-fn/

@@ -27,15 +27,15 @@
 **Fix:**
 1. Create SNS topic: `enviroguard-alerts`
 2. Update environment variables:
-   - posts-fn: `SNS_TOPIC_ARN=arn:aws:sns:us-east-1:184976607466:enviroguard-alerts`
-   - petitions-fn: `SNS_TOPIC_ARN=arn:aws:sns:us-east-1:184976607466:enviroguard-alerts`
-   - messages-fn: `SNS_TOPIC_ARN=arn:aws:sns:us-east-1:184976607466:enviroguard-alerts`
+   - posts-fn: `SNS_TOPIC_ARN=arn:aws:sns:us-east-1:YOUR_AWS_ACCOUNT_ID:enviroguard-alerts`
+   - petitions-fn: `SNS_TOPIC_ARN=arn:aws:sns:us-east-1:YOUR_AWS_ACCOUNT_ID:enviroguard-alerts`
+   - messages-fn: `SNS_TOPIC_ARN=arn:aws:sns:us-east-1:YOUR_AWS_ACCOUNT_ID:enviroguard-alerts`
 3. Add IAM permissions to Lambda roles:
    ```json
    {
      "Effect": "Allow",
      "Action": "sns:Publish",
-     "Resource": "arn:aws:sns:us-east-1:184976607466:enviroguard-alerts"
+     "Resource": "arn:aws:sns:us-east-1:YOUR_AWS_ACCOUNT_ID:enviroguard-alerts"
    }
    ```
 

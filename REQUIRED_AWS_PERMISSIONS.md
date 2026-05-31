@@ -8,7 +8,7 @@
 
 The EnviroGuard application requires permissions for 6 Lambda functions to access DynamoDB, SNS, and SES services. Currently blocked by missing IAM and service permissions.
 
-**AWS Account ID:** 184976607466  
+**AWS Account ID:** YOUR_AWS_ACCOUNT_ID  
 **Region:** us-east-1  
 **User:** btech-startakovskiy
 
@@ -48,16 +48,16 @@ Each of the 6 Lambda functions needs DynamoDB access. Please attach these permis
         "dynamodb:BatchWriteItem"
       ],
       "Resource": [
-        "arn:aws:dynamodb:us-east-1:184976607466:table/users",
-        "arn:aws:dynamodb:us-east-1:184976607466:table/users/index/*",
-        "arn:aws:dynamodb:us-east-1:184976607466:table/posts",
-        "arn:aws:dynamodb:us-east-1:184976607466:table/posts/index/*",
-        "arn:aws:dynamodb:us-east-1:184976607466:table/petitions",
-        "arn:aws:dynamodb:us-east-1:184976607466:table/petitions/index/*",
-        "arn:aws:dynamodb:us-east-1:184976607466:table/messages",
-        "arn:aws:dynamodb:us-east-1:184976607466:table/messages/index/*",
-        "arn:aws:dynamodb:us-east-1:184976607466:table/agreements",
-        "arn:aws:dynamodb:us-east-1:184976607466:table/agreements/index/*"
+        "arn:aws:dynamodb:us-east-1:YOUR_AWS_ACCOUNT_ID:table/users",
+        "arn:aws:dynamodb:us-east-1:YOUR_AWS_ACCOUNT_ID:table/users/index/*",
+        "arn:aws:dynamodb:us-east-1:YOUR_AWS_ACCOUNT_ID:table/posts",
+        "arn:aws:dynamodb:us-east-1:YOUR_AWS_ACCOUNT_ID:table/posts/index/*",
+        "arn:aws:dynamodb:us-east-1:YOUR_AWS_ACCOUNT_ID:table/petitions",
+        "arn:aws:dynamodb:us-east-1:YOUR_AWS_ACCOUNT_ID:table/petitions/index/*",
+        "arn:aws:dynamodb:us-east-1:YOUR_AWS_ACCOUNT_ID:table/messages",
+        "arn:aws:dynamodb:us-east-1:YOUR_AWS_ACCOUNT_ID:table/messages/index/*",
+        "arn:aws:dynamodb:us-east-1:YOUR_AWS_ACCOUNT_ID:table/agreements",
+        "arn:aws:dynamodb:us-east-1:YOUR_AWS_ACCOUNT_ID:table/agreements/index/*"
       ]
     }
   ]
@@ -114,7 +114,7 @@ Add to `posts-fn`, `petitions-fn`, and `messages-fn` execution roles:
       "Action": [
         "sns:Publish"
       ],
-      "Resource": "arn:aws:sns:us-east-1:184976607466:enviroguard-alerts"
+      "Resource": "arn:aws:sns:us-east-1:YOUR_AWS_ACCOUNT_ID:enviroguard-alerts"
     }
   ]
 }
@@ -210,13 +210,13 @@ Grant to user `btech-startakovskiy`:
         "iam:ListAttachedRolePolicies"
       ],
       "Resource": [
-        "arn:aws:iam::184976607466:role/users-fn-role-*",
-        "arn:aws:iam::184976607466:role/posts-fn-role-*",
-        "arn:aws:iam::184976607466:role/petitions-fn-role-*",
-        "arn:aws:iam::184976607466:role/messages-fn-role-*",
-        "arn:aws:iam::184976607466:role/ml-proxy-fn-role-*",
-        "arn:aws:iam::184976607466:role/env-data-fn-role-*",
-        "arn:aws:iam::184976607466:policy/*"
+        "arn:aws:iam::YOUR_AWS_ACCOUNT_ID:role/users-fn-role-*",
+        "arn:aws:iam::YOUR_AWS_ACCOUNT_ID:role/posts-fn-role-*",
+        "arn:aws:iam::YOUR_AWS_ACCOUNT_ID:role/petitions-fn-role-*",
+        "arn:aws:iam::YOUR_AWS_ACCOUNT_ID:role/messages-fn-role-*",
+        "arn:aws:iam::YOUR_AWS_ACCOUNT_ID:role/ml-proxy-fn-role-*",
+        "arn:aws:iam::YOUR_AWS_ACCOUNT_ID:role/env-data-fn-role-*",
+        "arn:aws:iam::YOUR_AWS_ACCOUNT_ID:policy/*"
       ]
     }
   ]

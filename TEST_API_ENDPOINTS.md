@@ -67,7 +67,7 @@ curl "https://w8r6o4jej0.execute-api.us-east-1.amazonaws.com/test1/agree/$POST_I
 Once API tests pass, start the Expo app:
 
 ```bash
-cd /Users/salomon/awshackathon/AWS_BEN_HACKATHON_2026/enviroguard
+cd /path/to/repo/enviroguard
 npx expo start
 ```
 
