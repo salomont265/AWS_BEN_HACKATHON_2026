@@ -5,6 +5,7 @@ const {
   PutCommand,
   QueryCommand,
   UpdateCommand,
+  ScanCommand,
 } = require("@aws-sdk/lib-dynamodb");
 const { SNSClient, PublishCommand } = require("@aws-sdk/client-sns");
 const https = require("https");
@@ -25,7 +26,12 @@ const PETITION_THRESHOLD = 10;
 function response(statusCode, body) {
   return {
     statusCode,
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Headers": "Content-Type,Authorization",
+      "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS"
+    },
     body: JSON.stringify(body),
   };
 }
@@ -246,46 +252,92 @@ async function getPosts(event) {
   if (!decoded) return response(401, { error: "Invalid JWT" });
 
   const qs = event.queryStringParameters || {};
-  const { neighborhood, category, sort, mode, aggregate, limit, lastKey } = qs;
-
-  if (!neighborhood) {
-    return response(400, { error: "Missing required param: neighborhood" });
-  }
+  const { neighborhood, category, sort, mode, aggregate, limit, lastKey, user_id } = qs;
 
   const limitNum = Math.min(parseInt(limit) || 20, 50);
 
-  const queryParams = {
-    TableName: "posts",
-    IndexName: "neighborhood_id-index",
-    KeyConditionExpression: "neighborhood_id = :nid",
-    ExpressionAttributeValues: { ":nid": neighborhood },
-    Limit: limitNum,
-  };
-
-  if (category) {
-    queryParams.FilterExpression = "category = :cat";
-    queryParams.ExpressionAttributeValues[":cat"] = category;
-  }
-
-  if (sort === "agreements") {
-    // DynamoDB scan then sort in memory (no LSI defined for this)
-    queryParams.ScanIndexForward = false;
-  } else {
-    queryParams.ScanIndexForward = false; // most recent first
-  }
-
-  if (lastKey) {
-    try {
-      queryParams.ExclusiveStartKey = JSON.parse(
-        Buffer.from(lastKey, "base64").toString("utf8")
-      );
-    } catch {
-      return response(400, { error: "Invalid lastKey cursor" });
-    }
-  }
-
   let posts;
   try {
+    // If user_id provided, use Scan (no GSI for user_id yet)
+    if (user_id) {
+      const scanParams = {
+        TableName: "posts",
+        FilterExpression: "user_id = :uid",
+        ExpressionAttributeValues: { ":uid": user_id },
+        Limit: limitNum,
+      };
+
+      if (category) {
+        scanParams.FilterExpression += " AND category = :cat";
+        scanParams.ExpressionAttributeValues[":cat"] = category;
+      }
+
+      if (lastKey) {
+        try {
+          scanParams.ExclusiveStartKey = JSON.parse(
+            Buffer.from(lastKey, "base64").toString("utf8")
+          );
+        } catch {
+          return response(400, { error: "Invalid lastKey cursor" });
+        }
+      }
+
+      const result = await ddb.send(new ScanCommand(scanParams));
+      posts = result.Items || [];
+
+      // Sort in memory
+      if (sort === "agreements") {
+        posts.sort((a, b) => (b.agreement_count || 0) - (a.agreement_count || 0));
+      } else {
+        posts.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      }
+
+      const nextLastKey = result.LastEvaluatedKey
+        ? Buffer.from(JSON.stringify(result.LastEvaluatedKey)).toString("base64")
+        : null;
+
+      return response(200, {
+        posts,
+        lastKey: nextLastKey,
+        total_returned: posts.length,
+      });
+    }
+
+    // Otherwise, neighborhood is required for Query
+    if (!neighborhood) {
+      return response(400, { error: "Missing required param: neighborhood or user_id" });
+    }
+
+    const queryParams = {
+      TableName: "posts",
+      IndexName: "neighborhood",
+      KeyConditionExpression: "neighborhood_id = :nid",
+      ExpressionAttributeValues: { ":nid": neighborhood },
+      Limit: limitNum,
+    };
+
+    if (category) {
+      queryParams.FilterExpression = "category = :cat";
+      queryParams.ExpressionAttributeValues[":cat"] = category;
+    }
+
+    if (sort === "agreements") {
+      // DynamoDB scan then sort in memory (no LSI defined for this)
+      queryParams.ScanIndexForward = false;
+    } else {
+      queryParams.ScanIndexForward = false; // most recent first
+    }
+
+    if (lastKey) {
+      try {
+        queryParams.ExclusiveStartKey = JSON.parse(
+          Buffer.from(lastKey, "base64").toString("utf8")
+        );
+      } catch {
+        return response(400, { error: "Invalid lastKey cursor" });
+      }
+    }
+
     const result = await ddb.send(new QueryCommand(queryParams));
     posts = result.Items || [];
 
@@ -333,7 +385,7 @@ async function getPost(event) {
 
     const agreementsResult = await ddb.send(
       new QueryCommand({
-        TableName: "agreements",
+        TableName: "agreement",
         KeyConditionExpression: "post_id = :pid",
         ExpressionAttributeValues: { ":pid": postId },
       })
@@ -382,7 +434,7 @@ async function agreePost(event) {
   try {
     const existing = await ddb.send(
       new GetCommand({
-        TableName: "agreements",
+        TableName: "agreement",
         Key: { post_id: postId, user_id },
       })
     );
@@ -400,7 +452,7 @@ async function agreePost(event) {
   try {
     await ddb.send(
       new PutCommand({
-        TableName: "agreements",
+        TableName: "agreement",
         Item: {
           post_id: postId,
           user_id,
@@ -429,7 +481,6 @@ async function agreePost(event) {
         ExpressionAttributeValues: {
           ":inc": 1,
           ":pr": (postItem.agreement_count || 0) + 1 >= PETITION_THRESHOLD,
-          ":threshold": PETITION_THRESHOLD - 1,
         },
         ConditionExpression: "attribute_exists(post_id)",
         ReturnValues: "ALL_NEW",
@@ -449,7 +500,7 @@ async function agreePost(event) {
     try {
       const agreersResult = await ddb.send(
         new QueryCommand({
-          TableName: "agreements",
+          TableName: "agreement",
           KeyConditionExpression: "post_id = :pid",
           ExpressionAttributeValues: { ":pid": postId },
         })
@@ -499,7 +550,7 @@ async function getAgree(event) {
       ddb.send(new GetCommand({ TableName: "posts", Key: { post_id: postId } })),
       ddb.send(
         new GetCommand({
-          TableName: "agreements",
+          TableName: "agreement",
           Key: { post_id: postId, user_id: userId },
         })
       ),
@@ -527,7 +578,10 @@ exports.handler = async (event) => {
   const path = event.path || event.rawPath || "";
   const method = event.httpMethod || event.requestContext?.http?.method || "GET";
 
-  console.log(`${method} ${path}`);
+  console.log(`DEBUG: ${method} ${path}`);
+  console.log("DEBUG event.path:", event.path);
+  console.log("DEBUG event.rawPath:", event.rawPath);
+  console.log("DEBUG event.resource:", event.resource);
 
   if (method === "POST" && path.endsWith("/posts")) return createPost(event);
   if (method === "GET" && path.endsWith("/posts")) return getPosts(event);

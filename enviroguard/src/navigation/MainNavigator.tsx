@@ -14,6 +14,7 @@ import HealthStack from './HealthStack';
 import ReportStack from './ReportStack';
 import CommunityStack from './CommunityStack';
 import ProfileStack from './ProfileStack';
+import APITestScreen from '../screens/APITestScreen';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
@@ -68,6 +69,14 @@ export default function MainNavigator() {
         component={ProfileStack}
         options={{
           tabBarLabel: 'Profile',
+          tabBarIcon: () => null,
+        }}
+      />
+      <Tab.Screen
+        name="APITest"
+        component={APITestScreen}
+        options={{
+          tabBarLabel: 'Test',
           tabBarIcon: () => null,
         }}
       />

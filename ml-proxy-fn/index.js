@@ -7,7 +7,12 @@ const PROXY_TIMEOUT_MS = 10000;
 function response(statusCode, body) {
   return {
     statusCode,
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Headers": "Content-Type,Authorization",
+      "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS"
+    },
     body: JSON.stringify(body),
   };
 }
@@ -48,7 +53,12 @@ async function forwardToEC2(ec2Path, queryParams) {
     const result = await proxyRequest(url);
     return {
       statusCode: result.statusCode,
-      headers: { "Content-Type": "application/json" },
+      headers: {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Headers": "Content-Type,Authorization",
+      "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS"
+    },
       body:
         typeof result.body === "string"
           ? result.body

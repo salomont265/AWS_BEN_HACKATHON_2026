@@ -20,7 +20,12 @@ const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "30d";
 function response(statusCode, body) {
   return {
     statusCode,
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Headers": "Content-Type,Authorization",
+      "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS"
+    },
     body: JSON.stringify(body),
   };
 }
@@ -288,12 +293,15 @@ exports.handler = async (event) => {
   const path = event.path || event.rawPath || "";
   const method = event.httpMethod || event.requestContext?.http?.method || "GET";
 
-  console.log(`${method} ${path}`);
+  console.log(`DEBUG: ${method} ${path}`);
+  console.log("DEBUG event.path:", event.path);
+  console.log("DEBUG event.rawPath:", event.rawPath);
+  console.log("DEBUG event.resource:", event.resource);
 
   if (method === "POST" && path.endsWith("/users")) return createUser(event);
   if (method === "GET" && path.match(/\/users\/[^/]+$/)) return getUser(event);
   if (method === "PUT" && path.match(/\/users\/[^/]+$/)) return updateUser(event);
   if (method === "POST" && path.endsWith("/push-token")) return savePushToken(event);
 
-  return response(404, { error: "Route not found" });
+  return response(404, { error: `Route not found. Path: ${path}, Method: ${method}` });
 };
