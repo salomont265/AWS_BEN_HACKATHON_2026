@@ -66,10 +66,10 @@ export default function MainNavigator() {
         }}
       />
       <Tab.Screen
-        name="ProfileTab"
-        component={ProfileStack}
+        name="CommunityTab"
+        component={CommunityStack}
         options={{
-          tabBarLabel: '👤 Profile',
+          tabBarLabel: '👥 Community',
           tabBarIcon: () => null,
         }}
       />

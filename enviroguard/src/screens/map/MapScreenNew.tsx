@@ -150,18 +150,50 @@ export default function MapScreenNew() {
     setMode(mode === 'api' ? 'community' : 'api');
   };
 
+  // Mock neighborhood data for web display
+  const mockNeighborhoods = [
+    { name: 'Downtown', severity: 'low', score: 32, lat: 40.7589, lng: -73.9851 },
+    { name: 'Williamsburg', severity: 'moderate', score: 58, lat: 40.7081, lng: -73.9571 },
+    { name: 'Brooklyn Heights', severity: 'low', score: 28, lat: 40.6962, lng: -73.9954 },
+    { name: 'East Village', severity: 'high', score: 72, lat: 40.7265, lng: -73.9815 },
+  ];
+
   return (
     <View style={styles.container}>
       {/* Map */}
       {Platform.OS === 'web' ? (
         <View style={[styles.map, styles.webMapPlaceholder]}>
-          <Text style={styles.webMapText}>🗺️</Text>
-          <Text style={styles.webMapSubtext}>
-            Map view requires mobile device
-          </Text>
-          <Text style={styles.webMapSubtext}>
-            Open in Expo Go app to see the map
-          </Text>
+          <View style={styles.webMapHeader}>
+            <Text style={styles.webMapTitle}>🗺️ Neighborhood Risk Map</Text>
+            <Text style={styles.webMapSubtext}>
+              Interactive map available on mobile • Open in Expo Go app
+            </Text>
+          </View>
+
+          <ScrollView style={styles.webNeighborhoodList} showsVerticalScrollIndicator={false}>
+            {mockNeighborhoods.map((hood, idx) => (
+              <Card key={idx} style={styles.webNeighborhoodCard}>
+                <View style={styles.webNeighborhoodHeader}>
+                  <Text style={styles.webNeighborhoodName}>{hood.name}</Text>
+                  <View style={[
+                    styles.webSeverityBadge,
+                    { backgroundColor: getSeverityColor(hood.severity) }
+                  ]}>
+                    <Text style={styles.webSeverityText}>{hood.severity.toUpperCase()}</Text>
+                  </View>
+                </View>
+                <View style={styles.webScoreRow}>
+                  <Text style={styles.webScoreLabel}>Risk Score:</Text>
+                  <Text style={[styles.webScoreValue, { color: getScoreColor(hood.score) }]}>
+                    {hood.score}/100
+                  </Text>
+                </View>
+                <Text style={styles.webLocationText}>
+                  📍 {hood.lat.toFixed(4)}, {hood.lng.toFixed(4)}
+                </Text>
+              </Card>
+            ))}
+          </ScrollView>
         </View>
       ) : (
         <MapView
@@ -501,16 +533,69 @@ const styles = StyleSheet.create({
   },
   webMapPlaceholder: {
     backgroundColor: Colors.background,
-    justifyContent: 'center',
-    alignItems: 'center',
+    padding: Spacing.screenPadding,
   },
-  webMapText: {
-    fontSize: 64,
-    marginBottom: 16,
+  webMapHeader: {
+    alignItems: 'center',
+    paddingVertical: Spacing.unit(3),
+    backgroundColor: Colors.primary,
+    borderRadius: 16,
+    marginBottom: Spacing.unit(2),
+  },
+  webMapTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: Colors.surface,
+    marginBottom: Spacing.unit(1),
   },
   webMapSubtext: {
     ...Typography.body,
-    color: Colors.textSecondary,
+    color: Colors.primaryLight,
     textAlign: 'center',
+  },
+  webNeighborhoodList: {
+    flex: 1,
+  },
+  webNeighborhoodCard: {
+    marginBottom: Spacing.unit(2),
+  },
+  webNeighborhoodHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.unit(1.5),
+  },
+  webNeighborhoodName: {
+    ...Typography.title,
+    fontSize: 20,
+  },
+  webSeverityBadge: {
+    paddingHorizontal: Spacing.unit(2),
+    paddingVertical: Spacing.unit(0.5),
+    borderRadius: 12,
+  },
+  webSeverityText: {
+    ...Typography.caption,
+    color: Colors.surface,
+    fontWeight: '700',
+  },
+  webScoreRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.unit(1),
+  },
+  webScoreLabel: {
+    ...Typography.body,
+    color: Colors.textSecondary,
+  },
+  webScoreValue: {
+    ...Typography.title,
+    fontSize: 28,
+    fontWeight: '700',
+  },
+  webLocationText: {
+    ...Typography.caption,
+    color: Colors.textSecondary,
   },
 });
