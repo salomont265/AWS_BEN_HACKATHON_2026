@@ -13,7 +13,15 @@ import {
   ScrollView,
   Dimensions,
 } from 'react-native';
-import MapView, { Marker, Region, PROVIDER_GOOGLE } from 'react-native-maps';
+import { Platform } from 'react-native';
+// Only import MapView on mobile platforms
+let MapView: any, Marker: any, PROVIDER_GOOGLE: any;
+if (Platform.OS !== 'web') {
+  const maps = require('react-native-maps');
+  MapView = maps.default;
+  Marker = maps.Marker;
+  PROVIDER_GOOGLE = maps.PROVIDER_GOOGLE;
+}
 import * as Location from 'expo-location';
 import { Colors, Typography, Spacing } from '@/theme/tokens';
 import { apiGet } from '../../utils/api';
@@ -145,32 +153,44 @@ export default function MapScreenNew() {
   return (
     <View style={styles.container}>
       {/* Map */}
-      <MapView
-        ref={mapRef}
-        style={styles.map}
-        provider={PROVIDER_GOOGLE}
-        region={region}
-        onRegionChangeComplete={setRegion}
-        showsUserLocation
-        showsMyLocationButton={false}
-        onPress={() => {
-          if (mapData) {
-            setShowBottomSheet(!showBottomSheet);
-          }
-        }}
-      >
-        {mapData && (
-          <Marker
-            coordinate={{
-              latitude: mapData.lat,
-              longitude: mapData.lng,
-            }}
-            title={mapData.name}
-            description={`Score: ${mapData.composite_score}`}
-            pinColor={getScoreColor(mapData.composite_score)}
-          />
-        )}
-      </MapView>
+      {Platform.OS === 'web' ? (
+        <View style={[styles.map, styles.webMapPlaceholder]}>
+          <Text style={styles.webMapText}>🗺️</Text>
+          <Text style={styles.webMapSubtext}>
+            Map view requires mobile device
+          </Text>
+          <Text style={styles.webMapSubtext}>
+            Open in Expo Go app to see the map
+          </Text>
+        </View>
+      ) : (
+        <MapView
+          ref={mapRef}
+          style={styles.map}
+          provider={PROVIDER_GOOGLE}
+          region={region}
+          onRegionChangeComplete={setRegion}
+          showsUserLocation
+          showsMyLocationButton={false}
+          onPress={() => {
+            if (mapData) {
+              setShowBottomSheet(!showBottomSheet);
+            }
+          }}
+        >
+          {mapData && (
+            <Marker
+              coordinate={{
+                latitude: mapData.lat,
+                longitude: mapData.lng,
+              }}
+              title={mapData.name}
+              description={`Score: ${mapData.composite_score}`}
+              pinColor={getScoreColor(mapData.composite_score)}
+            />
+          )}
+        </MapView>
+      )}
 
       {/* Mode Toggle Button */}
       <TouchableOpacity style={styles.modeButton} onPress={toggleMode}>
@@ -478,5 +498,19 @@ const styles = StyleSheet.create({
   metaText: {
     ...Typography.caption,
     color: Colors.textSecondary,
+  },
+  webMapPlaceholder: {
+    backgroundColor: Colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  webMapText: {
+    fontSize: 64,
+    marginBottom: 16,
+  },
+  webMapSubtext: {
+    ...Typography.body,
+    color: Colors.textSecondary,
+    textAlign: 'center',
   },
 });

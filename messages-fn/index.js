@@ -344,6 +344,11 @@ exports.handler = async (event) => {
 
   console.log(`${method} ${path}`);
 
+  // Handle OPTIONS for CORS preflight
+  if (method === "OPTIONS") {
+    return response(200, { message: "CORS preflight OK" });
+  }
+
   if (method === "POST" && path.endsWith("/threads")) return createThread(event);
   if (method === "GET" && path.endsWith("/threads")) return getThreads(event);
   if (method === "GET" && path.match(/\/messages\/[^/]+$/)) return getMessages(event);

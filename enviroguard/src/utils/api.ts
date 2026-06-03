@@ -3,16 +3,16 @@
  * Base URL: https://w8r6o4jej0.execute-api.us-east-1.amazonaws.com/v2
  */
 
-import * as SecureStore from 'expo-secure-store';
+import * as storage from './storage';
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_GATEWAY_URL || 'https://w8r6o4jej0.execute-api.us-east-1.amazonaws.com/v2';
 
 async function getToken(): Promise<string | null> {
-  return await SecureStore.getItemAsync('jwt_token');
+  return await storage.getItem('jwt_token');
 }
 
 export async function getUserId(): Promise<string | null> {
-  return await SecureStore.getItemAsync('user_id');
+  return await storage.getItem('user_id');
 }
 
 export async function apiGet<T = any>(
@@ -21,6 +21,7 @@ export async function apiGet<T = any>(
 ): Promise<T> {
   const token = await getToken();
   const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+  const url = `${BASE_URL}${path}${qs}`;
 
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
@@ -30,10 +31,11 @@ export async function apiGet<T = any>(
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${BASE_URL}${path}${qs}`, { headers });
+  const res = await fetch(url, { headers });
 
   if (!res.ok) {
     const text = await res.text();
+    console.error('apiGet ERROR:', { url, status: res.status, text });
     throw new Error(`${res.status}: ${text}`);
   }
 
@@ -124,13 +126,13 @@ export async function apiDelete<T = any>(
 
 // Auth helpers
 export async function saveAuthToken(token: string, userId: string) {
-  await SecureStore.setItemAsync('jwt_token', token);
-  await SecureStore.setItemAsync('user_id', userId);
+  await storage.setItem('jwt_token', token);
+  await storage.setItem('user_id', userId);
 }
 
 export async function clearAuthToken() {
-  await SecureStore.deleteItemAsync('jwt_token');
-  await SecureStore.deleteItemAsync('user_id');
+  await storage.deleteItem('jwt_token');
+  await storage.deleteItem('user_id');
 }
 
 export async function isAuthenticated(): Promise<boolean> {

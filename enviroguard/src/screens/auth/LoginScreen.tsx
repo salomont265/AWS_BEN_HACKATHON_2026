@@ -47,33 +47,32 @@ export default function LoginScreen({ onLoginSuccess }: LoginScreenProps) {
     try {
       setLoading(true);
 
-      // POST /users - Creates new user or returns error if exists
+      const endpoint = isLogin ? '/login' : '/users';
       const response = await apiPost<{
         user_id: string;
         email: string;
         token: string;
-      }>('/users', {
+      }>(endpoint, {
         email,
         password,
       });
 
-      // Save token and user_id to SecureStore
+      // Save token and user_id to storage
       await saveAuthToken(response.token, response.user_id);
 
-      Alert.alert('Success', 'Welcome to EnviroGuard!');
+      Alert.alert('Success', isLogin ? 'Welcome back!' : 'Welcome to EnviroGuard!');
       onLoginSuccess();
     } catch (error: any) {
       if (error.message.includes('409')) {
-        // User already exists
-        if (isLogin) {
-          Alert.alert('Error', 'Invalid credentials');
-        } else {
-          Alert.alert(
-            'Account Exists',
-            'This email is already registered. Try logging in instead.',
-            [{ text: 'Switch to Login', onPress: () => setIsLogin(true) }]
-          );
-        }
+        // User already exists (signup)
+        Alert.alert(
+          'Account Exists',
+          'This email is already registered. Try logging in instead.',
+          [{ text: 'Switch to Login', onPress: () => setIsLogin(true) }]
+        );
+      } else if (error.message.includes('401')) {
+        // Invalid credentials (login)
+        Alert.alert('Error', 'Invalid email or password');
       } else {
         Alert.alert('Error', error.message || 'Failed to authenticate');
       }

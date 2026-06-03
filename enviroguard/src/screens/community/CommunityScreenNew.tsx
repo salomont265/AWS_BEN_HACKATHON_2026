@@ -143,7 +143,7 @@ function FeedTab() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [neighborhood, setNeighborhood] = useState('williamsburg');
+  const [neighborhood, setNeighborhood] = useState('downtown');
   const [category, setCategory] = useState<string>('all');
   const [agreedPosts, setAgreedPosts] = useState<Set<string>>(new Set());
 

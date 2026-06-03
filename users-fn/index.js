@@ -144,6 +144,54 @@ async function createUser(event) {
   return response(201, { user_id, email, token });
 }
 
+// POST /login  (no auth required)
+async function loginUser(event) {
+  let body;
+  try {
+    body = JSON.parse(event.body || "{}");
+  } catch {
+    return response(400, { error: "Invalid request body" });
+  }
+
+  const { email, password } = body;
+  if (!email || !password) {
+    return response(400, { error: "Missing required fields: email, password" });
+  }
+
+  // Find user by email
+  try {
+    const result = await ddb.send(
+      new QueryCommand({
+        TableName: "users",
+        IndexName: "email-index",
+        KeyConditionExpression: "email = :email",
+        ExpressionAttributeValues: { ":email": email },
+        Limit: 1,
+      })
+    );
+
+    if (!result.Items || result.Items.length === 0) {
+      return response(401, { error: "Invalid email or password" });
+    }
+
+    const user = result.Items[0];
+    const passwordHash = hashPassword(password);
+
+    if (user.password_hash !== passwordHash) {
+      return response(401, { error: "Invalid email or password" });
+    }
+
+    const token = jwt.sign({ user_id: user.user_id, email: user.email }, JWT_SECRET, {
+      expiresIn: JWT_EXPIRES_IN,
+    });
+
+    return response(200, { user_id: user.user_id, email: user.email, token });
+  } catch (err) {
+    console.error("Login failed:", err);
+    return response(500, { error: "Internal server error" });
+  }
+}
+
 // GET /users/{id}
 async function getUser(event) {
   const decoded = verifyJWT(event);
@@ -298,7 +346,13 @@ exports.handler = async (event) => {
   console.log("DEBUG event.rawPath:", event.rawPath);
   console.log("DEBUG event.resource:", event.resource);
 
+  // Handle OPTIONS for CORS preflight
+  if (method === "OPTIONS") {
+    return response(200, { message: "CORS preflight OK" });
+  }
+
   if (method === "POST" && path.endsWith("/users")) return createUser(event);
+  if (method === "POST" && path.endsWith("/login")) return loginUser(event);
   if (method === "GET" && path.match(/\/users\/[^/]+$/)) return getUser(event);
   if (method === "PUT" && path.match(/\/users\/[^/]+$/)) return updateUser(event);
   if (method === "POST" && path.endsWith("/push-token")) return savePushToken(event);

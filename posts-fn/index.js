@@ -583,6 +583,11 @@ exports.handler = async (event) => {
   console.log("DEBUG event.rawPath:", event.rawPath);
   console.log("DEBUG event.resource:", event.resource);
 
+  // Handle OPTIONS for CORS preflight
+  if (method === "OPTIONS") {
+    return response(200, { message: "CORS preflight OK" });
+  }
+
   if (method === "POST" && path.endsWith("/posts")) return createPost(event);
   if (method === "GET" && path.endsWith("/posts")) return getPosts(event);
 

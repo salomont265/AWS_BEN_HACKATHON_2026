@@ -1,6 +1,6 @@
 import { apiGet, apiPost, apiPut } from '../utils/api';
 import { USE_FAKE_DATA } from '../constants/env';
-import * as SecureStore from 'expo-secure-store';
+import * as storage from '../utils/storage';
 import { fakeUser } from '../data/fake/fakeUser';
 
 export interface UserProfile {
@@ -55,8 +55,8 @@ export async function createUser(
     password
   });
 
-  await SecureStore.setItemAsync('jwt_token', result.token);
-  await SecureStore.setItemAsync('user_id', result.user_id);
+  await storage.setItem('jwt_token', result.token);
+  await storage.setItem('user_id', result.user_id);
 
   return result;
 }

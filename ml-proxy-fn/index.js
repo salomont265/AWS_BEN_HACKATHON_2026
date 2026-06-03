@@ -79,6 +79,11 @@ exports.handler = async (event) => {
 
   console.log(`${method} ${path}`);
 
+  // Handle OPTIONS for CORS preflight
+  if (method === "OPTIONS") {
+    return response(200, { message: "CORS preflight OK" });
+  }
+
   if (method !== "GET") {
     return response(405, { error: "Method not allowed" });
   }

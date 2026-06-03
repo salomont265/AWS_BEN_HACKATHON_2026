@@ -1,20 +1,16 @@
 import { apiGet } from '../utils/api';
-import { USE_FAKE_DATA } from '../constants/env';
-import { fakeForecastData } from '../data/fake/fakeForecastData';
 
 export interface HourlyPrediction {
-  hour: string; // e.g. '15:00'
-  value: number; // dB, AQI, index, or count depending on category
+  hour: string;
+  value: number;
   lower: number;
   upper: number;
-  health_category?: string; // AQI only
 }
 
 export interface ForecastData {
   neighborhood_id: string;
-  mode: 'api' | 'community';
-  confidence: 'low' | 'medium' | 'high';
-  community_report_count: number | null; // null in API mode, count in community mode
+  mode: 'api' | 'ml';
+  confidence: string;
   generated_at: string;
   noise: HourlyPrediction[];
   aqi: HourlyPrediction[];
@@ -22,57 +18,52 @@ export interface ForecastData {
   pollen: HourlyPrediction[];
 }
 
-// Called by ForecastScreen on mount and when mode or neighborhood changes
-// Fires all 4 prediction endpoints in parallel — do not await them in sequence
 export async function fetchAllForecasts(
   neighborhood: string,
-  mode: 'api' | 'community'
+  mode: 'api' | 'ml'
 ): Promise<ForecastData> {
-  if (USE_FAKE_DATA) return fakeForecastData[mode];
+  try {
+    const [noise, aqi, litter, pollen] = await Promise.all([
+      apiGet(`/predict-noise/${neighborhood}`, { mode }),
+      apiGet(`/predict-aqi/${neighborhood}`, { mode }),
+      apiGet(`/predict-litter/${neighborhood}`, { mode }),
+      apiGet(`/predict-pollen/${neighborhood}`, { mode }),
+    ]);
 
-  const params = { mode };
-  const [noise, aqi, litter, pollen] = await Promise.all([
-    apiGet(`/predict-noise/${neighborhood}`, params),
-    apiGet(`/predict-aqi/${neighborhood}`, params),
-    apiGet(`/predict-litter/${neighborhood}`, params),
-    apiGet(`/predict-pollen/${neighborhood}`, params),
-  ]);
-
-  // Normalize all 4 responses into one ForecastData shape
-  // Each endpoint returns slightly different field names — flatten here
-  return {
-    neighborhood_id: neighborhood,
-    mode,
-    confidence: (noise as any).confidence ?? 'medium',
-    community_report_count: (noise as any).community_report_count ?? null,
-    generated_at: (noise as any).generated_at,
-    noise: normalizeHourly(noise, 'db'),
-    aqi: normalizeHourly(aqi, 'aqi', true),
-    litter: normalizeHourly(litter, 'index'),
-    pollen: normalizeHourly(pollen, 'count'),
-  };
+    return {
+      neighborhood_id: neighborhood,
+      mode,
+      confidence: 'high',
+      generated_at: new Date().toISOString(),
+      noise: normalizeMLResponse(noise),
+      aqi: normalizeMLResponse(aqi),
+      litter: normalizeMLResponse(litter),
+      pollen: normalizeMLResponse(pollen),
+    };
+  } catch (error) {
+    console.error('fetchAllForecasts ERROR:', error);
+    throw error;
+  }
 }
 
-// Maps each endpoint's value field to a common 'value' key
-function normalizeHourly(
-  raw: any,
-  valueKey: string,
-  includeHealthCategory = false
-): HourlyPrediction[] {
-  return (raw.predictions ?? []).map((p: any) => ({
-    hour: p.hour,
-    value: p[valueKey],
-    lower: p.lower,
-    upper: p.upper,
-    health_category: includeHealthCategory ? p.health_category : undefined,
-  }));
-}
+// ML API returns: { category, data: { prediction[], lower[], upper[], timestamp[] }, mode, neighborhood }
+function normalizeMLResponse(raw: any): HourlyPrediction[] {
+  if (!raw?.data?.prediction) {
+    console.error('Invalid ML response:', raw);
+    return [];
+  }
 
-// How ForecastScreen uses this:
-//
-// useEffect(() => {
-//   setLoading(true);
-//   fetchAllForecasts(selectedNeighborhood, mode)
-//     .then(setForecast)
-//     .finally(() => setLoading(false));
-// }, [selectedNeighborhood, mode]);
+  const { prediction, lower, upper, timestamp } = raw.data;
+
+  return prediction.map((value: number, index: number) => {
+    const date = timestamp ? new Date(timestamp[index]) : new Date();
+    const hour = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+
+    return {
+      hour,
+      value: Math.round(value),
+      lower: Math.round(lower[index]),
+      upper: Math.round(upper[index]),
+    };
+  });
+}

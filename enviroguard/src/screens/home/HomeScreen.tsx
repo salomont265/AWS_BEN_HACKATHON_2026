@@ -13,6 +13,7 @@ import {
   TouchableOpacity,
   Dimensions,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { Colors, Typography, Spacing } from '@/theme/tokens';
 import { fetchAllForecasts, ForecastData } from '../../services/forecastService';
 import MetricCard from '../../components/MetricCard';
@@ -22,6 +23,7 @@ import Button from '../../components/Button';
 const { width } = Dimensions.get('window');
 
 export default function HomeScreen() {
+  const navigation = useNavigation();
   const [forecast, setForecast] = useState<ForecastData | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -34,10 +36,11 @@ export default function HomeScreen() {
 
   const loadForecast = async () => {
     try {
-      const data = await fetchAllForecasts('williamsburg', 'api');
+      const data = await fetchAllForecasts('downtown', 'ml');
       setForecast(data);
     } catch (error) {
       console.error('Failed to load forecast:', error);
+      alert('Failed to load forecast: ' + (error as Error).message);
     } finally {
       setLoading(false);
     }
@@ -169,28 +172,28 @@ export default function HomeScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Quick Actions</Text>
         <View style={styles.actionsGrid}>
-          <TouchableOpacity style={styles.actionCard}>
+          <TouchableOpacity style={styles.actionCard} onPress={() => navigation.navigate('HealthTab' as never)}>
             <Text style={styles.actionIcon}>📊</Text>
             <Text style={styles.actionTitle}>View Forecast</Text>
             <Text style={styles.actionSubtitle}>Next 24 hours</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionCard}>
+          <TouchableOpacity style={styles.actionCard} onPress={() => navigation.navigate('ReportTab' as never)}>
             <Text style={styles.actionIcon}>📝</Text>
             <Text style={styles.actionTitle}>Submit Report</Text>
             <Text style={styles.actionSubtitle}>Report an issue</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionCard}>
+          <TouchableOpacity style={styles.actionCard} onPress={() => navigation.navigate('MapTab' as never)}>
             <Text style={styles.actionIcon}>🗺️</Text>
             <Text style={styles.actionTitle}>View Map</Text>
             <Text style={styles.actionSubtitle}>Risk zones</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionCard}>
+          <TouchableOpacity style={styles.actionCard} onPress={() => navigation.navigate('ProfileTab' as never)}>
             <Text style={styles.actionIcon}>👥</Text>
-            <Text style={styles.actionTitle}>Community</Text>
-            <Text style={styles.actionSubtitle}>Local reports</Text>
+            <Text style={styles.actionTitle}>Profile</Text>
+            <Text style={styles.actionSubtitle}>Settings & info</Text>
           </TouchableOpacity>
         </View>
       </View>

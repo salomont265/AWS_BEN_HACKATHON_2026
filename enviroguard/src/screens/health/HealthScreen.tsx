@@ -23,10 +23,11 @@ export default function HealthScreen() {
 
   const loadForecast = async () => {
     try {
-      const data = await fetchAllForecasts('williamsburg', 'api');
+      const data = await fetchAllForecasts('downtown', 'ml');
       setForecast(data);
     } catch (error) {
       console.error('Failed to load forecast:', error);
+      alert('Failed to load forecast: ' + (error as Error).message);
     } finally {
       setLoading(false);
     }

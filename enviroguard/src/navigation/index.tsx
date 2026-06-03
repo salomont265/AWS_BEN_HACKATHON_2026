@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
-import { ActivityIndicator, View, StyleSheet } from 'react-native';
+import { ActivityIndicator, View, StyleSheet, Platform } from 'react-native';
 import MainNavigator from './MainNavigator';
 import LoginScreen from '../screens/auth/LoginScreen';
 import { isAuthenticated } from '../utils/api';
@@ -33,6 +33,7 @@ export default function RootNavigator() {
       setLoading(false);
     }
   };
+
 
   const handleLoginSuccess = () => {
     setIsLoggedIn(true);

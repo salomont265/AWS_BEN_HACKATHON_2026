@@ -145,7 +145,7 @@ export default function ReportScreenNew() {
         category,
         lat: location.coords.latitude,
         lng: location.coords.longitude,
-        neighborhood_id: 'williamsburg', // TODO: Calculate from lat/lng
+        neighborhood_id: 'downtown', // TODO: Calculate from lat/lng
         description,
         severity,
         photo_url: photoUri || undefined,
