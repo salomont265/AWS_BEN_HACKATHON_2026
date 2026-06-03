@@ -4,9 +4,11 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, Switch } from 'react-native';
 import { Colors, Typography, Spacing } from '@/theme/tokens';
 import { fetchProfile, UserProfile } from '../../services/usersService';
+import Card from '../../components/Card';
+import Button from '../../components/Button';
 
 export default function ProfileScreen() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -51,45 +53,70 @@ export default function ProfileScreen() {
   if (profile.health.noise_sensitivity) healthConditions.push('Noise Sensitivity');
 
   return (
-    <ScrollView style={styles.container}>
+    <View style={styles.container}>
       <View style={styles.header}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>👤</Text>
+        <View style={styles.headerContent}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>👤</Text>
+          </View>
+          <View style={styles.userInfo}>
+            <Text style={styles.name}>{profile.email.split('@')[0]}</Text>
+            <Text style={styles.email}>{profile.email}</Text>
+          </View>
         </View>
-        <Text style={styles.name}>{profile.email.split('@')[0]}</Text>
-        <Text style={styles.email}>{profile.email}</Text>
+        <TouchableOpacity style={styles.editButton}>
+          <Text style={styles.editButtonText}>Edit Profile</Text>
+        </TouchableOpacity>
       </View>
+
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Health Conditions</Text>
-        <View style={styles.chipContainer}>
-          {healthConditions.length > 0 ? (
-            healthConditions.map((condition) => (
-              <View key={condition} style={styles.chip}>
-                <Text style={styles.chipText}>{condition}</Text>
-              </View>
-            ))
-          ) : (
-            <Text style={styles.emptyText}>No conditions listed</Text>
-          )}
-        </View>
-        <Text style={styles.metaText}>Age Group: {profile.health.age_group}</Text>
+        <Card style={styles.healthCard}>
+          <View style={styles.chipContainer}>
+            {healthConditions.length > 0 ? (
+              healthConditions.map((condition) => (
+                <View key={condition} style={styles.chip}>
+                  <Text style={styles.chipText}>{condition}</Text>
+                </View>
+              ))
+            ) : (
+              <Text style={styles.emptyText}>No conditions listed</Text>
+            )}
+          </View>
+          <View style={styles.ageGroupRow}>
+            <Text style={styles.ageGroupLabel}>Age Group:</Text>
+            <Text style={styles.ageGroupValue}>{profile.health.age_group}</Text>
+          </View>
+        </Card>
       </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Alert Thresholds</Text>
-        <View style={styles.thresholdRow}>
-          <Text style={styles.thresholdLabel}>AQI Threshold</Text>
-          <Text style={styles.thresholdValue}>{profile.thresholds.aqi}</Text>
-        </View>
-        <View style={styles.thresholdRow}>
-          <Text style={styles.thresholdLabel}>Noise Level</Text>
-          <Text style={styles.thresholdValue}>{profile.thresholds.noise_db} dB</Text>
-        </View>
-        <View style={styles.thresholdRow}>
-          <Text style={styles.thresholdLabel}>Pollen Index</Text>
-          <Text style={styles.thresholdValue}>{profile.thresholds.pollen_index}</Text>
-        </View>
+        <Card>
+          <View style={styles.thresholdRow}>
+            <View style={styles.thresholdLeft}>
+              <Text style={styles.thresholdIcon}>💨</Text>
+              <Text style={styles.thresholdLabel}>AQI Threshold</Text>
+            </View>
+            <Text style={styles.thresholdValue}>{profile.thresholds.aqi}</Text>
+          </View>
+          <View style={styles.thresholdRow}>
+            <View style={styles.thresholdLeft}>
+              <Text style={styles.thresholdIcon}>🔊</Text>
+              <Text style={styles.thresholdLabel}>Noise Level</Text>
+            </View>
+            <Text style={styles.thresholdValue}>{profile.thresholds.noise_db} dB</Text>
+          </View>
+          <View style={[styles.thresholdRow, styles.thresholdRowLast]}>
+            <View style={styles.thresholdLeft}>
+              <Text style={styles.thresholdIcon}>🌸</Text>
+              <Text style={styles.thresholdLabel}>Pollen Index</Text>
+            </View>
+            <Text style={styles.thresholdValue}>{profile.thresholds.pollen_index}</Text>
+          </View>
+        </Card>
       </View>
 
       <View style={styles.section}>
@@ -130,13 +157,25 @@ export default function ProfileScreen() {
         </Text>
       </View>
 
+      <View style={styles.section}>
+        <Button
+          title="Sign Out"
+          variant="danger"
+          fullWidth
+          icon="👋"
+          onPress={() => console.log('Sign out')}
+        />
+      </View>
+
       <View style={styles.infoBox}>
         <Text style={styles.infoTitle}>✅ Connected to User Service</Text>
         <Text style={styles.infoText}>• Loaded profile from fake data</Text>
         <Text style={styles.infoText}>• User ID: {profile.user_id}</Text>
-        <Text style={styles.infoText}>• Toggle USE_FAKE_DATA in .env for real backend</Text>
       </View>
-    </ScrollView>
+
+      <View style={{ height: Spacing.unit(4) }} />
+      </ScrollView>
+    </View>
   );
 }
 
@@ -156,86 +195,131 @@ const styles = StyleSheet.create({
     color: Colors.danger,
   },
   header: {
-    backgroundColor: Colors.surface,
-    padding: Spacing.unit(4),
-    alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
+    backgroundColor: Colors.primary,
+    paddingTop: Spacing.unit(6),
+    paddingBottom: Spacing.unit(3),
+    paddingHorizontal: Spacing.screenPadding,
   },
-  avatar: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: Colors.primaryLight,
-    justifyContent: 'center',
+  headerContent: {
+    flexDirection: 'row',
     alignItems: 'center',
     marginBottom: Spacing.unit(2),
   },
+  avatar: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: Colors.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.unit(2),
+  },
   avatarText: {
-    fontSize: 40,
+    fontSize: 36,
+  },
+  userInfo: {
+    flex: 1,
   },
   name: {
-    ...Typography.title,
+    fontSize: 24,
+    fontWeight: '700',
+    color: Colors.surface,
     marginBottom: Spacing.unit(0.5),
   },
   email: {
     ...Typography.body,
-    color: Colors.textSecondary,
+    color: Colors.primaryLight,
+  },
+  editButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingVertical: Spacing.unit(1.5),
+    paddingHorizontal: Spacing.unit(3),
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  editButtonText: {
+    ...Typography.body,
+    fontWeight: '600',
+    color: Colors.surface,
+  },
+  content: {
+    flex: 1,
   },
   section: {
-    backgroundColor: Colors.surface,
-    padding: Spacing.screenPadding,
-    marginTop: Spacing.unit(2),
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: Colors.border,
+    paddingHorizontal: Spacing.screenPadding,
+    marginTop: Spacing.unit(3),
   },
   sectionTitle: {
-    ...Typography.subtitle,
+    ...Typography.title,
     marginBottom: Spacing.unit(2),
+  },
+  healthCard: {
+    backgroundColor: Colors.primaryLight,
+    borderColor: Colors.primary,
   },
   chipContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginBottom: Spacing.unit(1),
+    marginBottom: Spacing.unit(2),
     marginHorizontal: -Spacing.unit(0.5),
   },
   chip: {
-    backgroundColor: Colors.primaryLight,
+    backgroundColor: Colors.surface,
     paddingHorizontal: Spacing.unit(2),
     paddingVertical: Spacing.unit(1),
     margin: Spacing.unit(0.5),
-    borderRadius: 16,
+    borderRadius: 20,
     borderWidth: 1,
     borderColor: Colors.primary,
   },
   chipText: {
     ...Typography.body,
     color: Colors.primary,
+    fontWeight: '600',
   },
   emptyText: {
     ...Typography.body,
     color: Colors.textSecondary,
     fontStyle: 'italic',
   },
-  metaText: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
-    marginTop: Spacing.unit(1),
+  ageGroupRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  ageGroupLabel: {
+    ...Typography.body,
+    marginRight: Spacing.unit(1),
+  },
+  ageGroupValue: {
+    ...Typography.body,
+    fontWeight: '600',
+    color: Colors.primary,
   },
   thresholdRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: Spacing.unit(1.5),
+    alignItems: 'center',
+    paddingVertical: Spacing.unit(2),
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
+  },
+  thresholdRowLast: {
+    borderBottomWidth: 0,
+  },
+  thresholdLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  thresholdIcon: {
+    fontSize: 24,
+    marginRight: Spacing.unit(1.5),
   },
   thresholdLabel: {
     ...Typography.body,
   },
   thresholdValue: {
-    ...Typography.body,
-    fontWeight: '600',
+    ...Typography.subtitle,
+    fontWeight: '700',
     color: Colors.primary,
   },
   locationCard: {

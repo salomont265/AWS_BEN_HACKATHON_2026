@@ -1,26 +1,71 @@
 /**
- * Root Navigator
- * WHY: Entry point for all app navigation
- * PRODUCTION-READY: This structure is final
+ * Root Navigator - With Authentication
+ * Per FRONTEND_IMPLEMENTATION_PLAN.md
  */
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
+import { ActivityIndicator, View, StyleSheet } from 'react-native';
 import MainNavigator from './MainNavigator';
+import LoginScreen from '../screens/auth/LoginScreen';
+import { isAuthenticated } from '../utils/api';
+import { Colors } from '@/theme/tokens';
 import type { RootStackParamList } from './types';
 
 const Stack = createStackNavigator<RootStackParamList>();
 
 export default function RootNavigator() {
-  // TODO: Add auth check here
-  // For now, always show main app (skip auth)
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    checkAuth();
+  }, []);
+
+  const checkAuth = async () => {
+    try {
+      const authenticated = await isAuthenticated();
+      setIsLoggedIn(authenticated);
+    } catch (error) {
+      setIsLoggedIn(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLoginSuccess = () => {
+    setIsLoggedIn(true);
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="Main" component={MainNavigator} />
+        {isLoggedIn ? (
+          <Stack.Screen name="Main" component={MainNavigator} />
+        ) : (
+          <Stack.Screen name="Login">
+            {() => <LoginScreen onLoginSuccess={handleLoginSuccess} />}
+          </Stack.Screen>
+        )}
       </Stack.Navigator>
     </NavigationContainer>
   );
 }
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.background,
+  },
+});

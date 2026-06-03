@@ -12,6 +12,7 @@
     "@anthropic-ai/sdk": "^0.96.0",
     "@react-native-async-storage/async-storage": "^3.0.2",
     "@react-navigation/bottom-tabs": "^7.16.1",
+    "@react-navigation/material-top-tabs": "^7.4.28",
     "@react-navigation/native": "^7.2.4",
     "@react-navigation/stack": "^7.9.2",
     "@tanstack/react-query": "^5.100.10",
@@ -30,8 +31,10 @@
     "react-native": "0.81.5",
     "react-native-gesture-handler": "^2.31.2",
     "react-native-maps": "^1.27.2",
+    "react-native-pager-view": "^8.0.2",
     "react-native-safe-area-context": "^5.7.0",
     "react-native-screens": "^4.25.0",
+    "react-native-tab-view": "^4.3.0",
     "react-native-web": "^0.21.2"
   },
   "devDependencies": {

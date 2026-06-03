@@ -9,6 +9,7 @@ import { Colors } from '@/theme/tokens';
 import type { MainTabParamList } from './types';
 
 // Import tab stacks
+import HomeScreen from '../screens/home/HomeScreen';
 import MapStack from './MapStack';
 import HealthStack from './HealthStack';
 import ReportStack from './ReportStack';
@@ -33,18 +34,26 @@ export default function MainNavigator() {
       }}
     >
       <Tab.Screen
+        name="HomeTab"
+        component={HomeScreen}
+        options={{
+          tabBarLabel: '🏠 Home',
+          tabBarIcon: () => null,
+        }}
+      />
+      <Tab.Screen
         name="MapTab"
         component={MapStack}
         options={{
-          tabBarLabel: 'Map',
-          tabBarIcon: () => null, // TODO: Add icons
+          tabBarLabel: '🗺️ Map',
+          tabBarIcon: () => null,
         }}
       />
       <Tab.Screen
         name="HealthTab"
         component={HealthStack}
         options={{
-          tabBarLabel: 'Health',
+          tabBarLabel: '📊 Health',
           tabBarIcon: () => null,
         }}
       />
@@ -52,15 +61,7 @@ export default function MainNavigator() {
         name="ReportTab"
         component={ReportStack}
         options={{
-          tabBarLabel: 'Report',
-          tabBarIcon: () => null,
-        }}
-      />
-      <Tab.Screen
-        name="CommunityTab"
-        component={CommunityStack}
-        options={{
-          tabBarLabel: 'Community',
+          tabBarLabel: '📝 Report',
           tabBarIcon: () => null,
         }}
       />
@@ -68,15 +69,7 @@ export default function MainNavigator() {
         name="ProfileTab"
         component={ProfileStack}
         options={{
-          tabBarLabel: 'Profile',
-          tabBarIcon: () => null,
-        }}
-      />
-      <Tab.Screen
-        name="APITest"
-        component={APITestScreen}
-        options={{
-          tabBarLabel: 'Test',
+          tabBarLabel: '👤 Profile',
           tabBarIcon: () => null,
         }}
       />
