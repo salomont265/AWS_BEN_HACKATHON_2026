@@ -158,40 +158,81 @@ export default function MapScreenNew() {
     { name: 'East Village', severity: 'high', score: 72, lat: 40.7265, lng: -73.9815 },
   ];
 
+  const [selectedNeighborhood, setSelectedNeighborhood] = React.useState(mockNeighborhoods[0]);
+
+  // Generate Google Maps static image URL with markers
+  const getMapImageUrl = () => {
+    const center = `${selectedNeighborhood.lat},${selectedNeighborhood.lng}`;
+    const markers = mockNeighborhoods.map(n => {
+      const color = n.severity === 'high' ? 'red' : n.severity === 'moderate' ? 'orange' : 'green';
+      return `markers=color:${color}|label:${n.name[0]}|${n.lat},${n.lng}`;
+    }).join('&');
+
+    return `https://maps.googleapis.com/maps/api/staticmap?center=${center}&zoom=12&size=800x600&maptype=roadmap&${markers}&key=AIzaSyDummy`;
+  };
+
   return (
     <View style={styles.container}>
       {/* Map */}
       {Platform.OS === 'web' ? (
-        <View style={[styles.map, styles.webMapPlaceholder]}>
-          <View style={styles.webMapHeader}>
-            <Text style={styles.webMapTitle}>🗺️ Neighborhood Risk Map</Text>
-            <Text style={styles.webMapSubtext}>
-              Interactive map available on mobile • Open in Expo Go app
-            </Text>
+        <View style={styles.map}>
+          {/* Embedded OpenStreetMap - No API key needed */}
+          <iframe
+            style={{
+              width: '100%',
+              height: '100%',
+              border: 0,
+            }}
+            loading="lazy"
+            src={`https://www.openstreetmap.org/export/embed.html?bbox=-74.05,40.68,-73.95,40.75&layer=mapnik&marker=${selectedNeighborhood.lat},${selectedNeighborhood.lng}`}
+            title="NYC Environmental Risk Map"
+          />
+
+          {/* Controls overlay */}
+          <View style={styles.webMapControls}>
+            <View style={styles.webModeToggle}>
+              <TouchableOpacity
+                style={[styles.webModeButton, mode === 'api' && styles.webModeButtonActive]}
+                onPress={() => setMode('api')}
+              >
+                <Text style={[styles.webModeText, mode === 'api' && styles.webModeTextActive]}>
+                  📡 API Data
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.webModeButton, mode === 'community' && styles.webModeButtonActive]}
+                onPress={() => setMode('community')}
+              >
+                <Text style={[styles.webModeText, mode === 'community' && styles.webModeTextActive]}>
+                  👥 Community
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
-          <ScrollView style={styles.webNeighborhoodList} showsVerticalScrollIndicator={false}>
+          {/* Neighborhood selector */}
+          <ScrollView
+            horizontal
+            style={styles.webNeighborhoodScroll}
+            showsHorizontalScrollIndicator={false}
+          >
             {mockNeighborhoods.map((hood, idx) => (
-              <Card key={idx} style={styles.webNeighborhoodCard}>
-                <View style={styles.webNeighborhoodHeader}>
-                  <Text style={styles.webNeighborhoodName}>{hood.name}</Text>
-                  <View style={[
-                    styles.webSeverityBadge,
-                    { backgroundColor: getSeverityColor(hood.severity) }
-                  ]}>
-                    <Text style={styles.webSeverityText}>{hood.severity.toUpperCase()}</Text>
-                  </View>
+              <TouchableOpacity
+                key={idx}
+                style={[
+                  styles.webNeighborhoodChip,
+                  selectedNeighborhood.name === hood.name && styles.webNeighborhoodChipActive
+                ]}
+                onPress={() => setSelectedNeighborhood(hood)}
+              >
+                <Text style={styles.webNeighborhoodChipName}>{hood.name}</Text>
+                <View style={[
+                  styles.webNeighborhoodChipBadge,
+                  { backgroundColor: getSeverityColor(hood.severity) }
+                ]}>
+                  <Text style={styles.webNeighborhoodChipScore}>{hood.score}</Text>
                 </View>
-                <View style={styles.webScoreRow}>
-                  <Text style={styles.webScoreLabel}>Risk Score:</Text>
-                  <Text style={[styles.webScoreValue, { color: getScoreColor(hood.score) }]}>
-                    {hood.score}/100
-                  </Text>
-                </View>
-                <Text style={styles.webLocationText}>
-                  📍 {hood.lat.toFixed(4)}, {hood.lng.toFixed(4)}
-                </Text>
-              </Card>
+              </TouchableOpacity>
             ))}
           </ScrollView>
         </View>
@@ -531,71 +572,84 @@ const styles = StyleSheet.create({
     ...Typography.caption,
     color: Colors.textSecondary,
   },
-  webMapPlaceholder: {
-    backgroundColor: Colors.background,
-    padding: Spacing.screenPadding,
+  webMapControls: {
+    position: 'absolute',
+    top: Spacing.unit(2),
+    left: Spacing.screenPadding,
+    right: Spacing.screenPadding,
+    zIndex: 10,
   },
-  webMapHeader: {
-    alignItems: 'center',
-    paddingVertical: Spacing.unit(3),
-    backgroundColor: Colors.primary,
-    borderRadius: 16,
-    marginBottom: Spacing.unit(2),
-  },
-  webMapTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: Colors.surface,
-    marginBottom: Spacing.unit(1),
-  },
-  webMapSubtext: {
-    ...Typography.body,
-    color: Colors.primaryLight,
-    textAlign: 'center',
-  },
-  webNeighborhoodList: {
-    flex: 1,
-  },
-  webNeighborhoodCard: {
-    marginBottom: Spacing.unit(2),
-  },
-  webNeighborhoodHeader: {
+  webModeToggle: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.unit(1.5),
-  },
-  webNeighborhoodName: {
-    ...Typography.title,
-    fontSize: 20,
-  },
-  webSeverityBadge: {
-    paddingHorizontal: Spacing.unit(2),
-    paddingVertical: Spacing.unit(0.5),
+    backgroundColor: Colors.surface,
     borderRadius: 12,
+    padding: Spacing.unit(0.5),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
-  webSeverityText: {
+  webModeButton: {
+    flex: 1,
+    paddingVertical: Spacing.unit(1),
+    paddingHorizontal: Spacing.unit(2),
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  webModeButtonActive: {
+    backgroundColor: Colors.primary,
+  },
+  webModeText: {
+    ...Typography.body,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+    fontSize: 13,
+  },
+  webModeTextActive: {
+    color: Colors.surface,
+  },
+  webNeighborhoodScroll: {
+    position: 'absolute',
+    bottom: Spacing.unit(2),
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    paddingHorizontal: Spacing.screenPadding,
+  },
+  webNeighborhoodChip: {
+    backgroundColor: Colors.surface,
+    borderRadius: 12,
+    padding: Spacing.unit(1.5),
+    marginRight: Spacing.unit(1),
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  webNeighborhoodChipActive: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primaryLight,
+  },
+  webNeighborhoodChipName: {
+    ...Typography.body,
+    fontWeight: '600',
+    marginRight: Spacing.unit(1),
+  },
+  webNeighborhoodChipBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  webNeighborhoodChipScore: {
     ...Typography.caption,
     color: Colors.surface,
     fontWeight: '700',
-  },
-  webScoreRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: Spacing.unit(1),
-  },
-  webScoreLabel: {
-    ...Typography.body,
-    color: Colors.textSecondary,
-  },
-  webScoreValue: {
-    ...Typography.title,
-    fontSize: 28,
-    fontWeight: '700',
-  },
-  webLocationText: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
+    fontSize: 12,
   },
 });
