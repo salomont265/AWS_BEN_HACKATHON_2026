@@ -33,8 +33,6 @@ export default function ReportScreenNew() {
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [aiAnalyzing, setAiAnalyzing] = useState(false);
-  const [aiSuggestion, setAiSuggestion] = useState<any>(null);
 
   useEffect(() => {
     getCurrentLocation();
@@ -73,7 +71,6 @@ export default function ReportScreenNew() {
         if (file) {
           const uri = URL.createObjectURL(file);
           setPhotoUri(uri);
-          analyzePhoto(uri);
         }
       };
       input.click();
@@ -88,38 +85,10 @@ export default function ReportScreenNew() {
 
       if (!result.canceled && result.assets[0]) {
         setPhotoUri(result.assets[0].uri);
-        analyzePhoto(result.assets[0].uri);
       }
     }
   };
 
-  const analyzePhoto = async (uri: string) => {
-    setAiAnalyzing(true);
-    try {
-      // Simulate Claude Vision analysis
-      // In real implementation, this would call POST /reports with photo
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // Mock AI suggestion
-      setAiSuggestion({
-        confirmed_category: category,
-        severity: severity + 1,
-        description: 'AI detected: ' + getCategoryLabel(category) + ' issue in the photo',
-      });
-    } catch (error) {
-      console.error('AI analysis failed:', error);
-    } finally {
-      setAiAnalyzing(false);
-    }
-  };
-
-  const useAISuggestion = () => {
-    if (aiSuggestion) {
-      setCategory(aiSuggestion.confirmed_category);
-      setSeverity(Math.min(aiSuggestion.severity, 5));
-      setDescription(aiSuggestion.description);
-    }
-  };
 
   const getCategoryLabel = (cat: Category) => {
     const labels = {
@@ -144,15 +113,16 @@ export default function ReportScreenNew() {
   };
 
   const handleSubmit = async () => {
-    if (!location) {
-      Alert.alert('Error', 'Location is required. Please enable location services.');
-      return;
-    }
+    console.log('handleSubmit called');
 
     if (!description.trim()) {
       Alert.alert('Error', 'Please describe the issue');
       return;
     }
+
+    // Use location if available, otherwise default to NYC
+    const lat = location?.coords?.latitude || 40.7128;
+    const lng = location?.coords?.longitude || -74.006;
 
     setLoading(true);
     try {
@@ -161,6 +131,7 @@ export default function ReportScreenNew() {
       // Upload photo to S3 first if photo exists
       if (photoUri) {
         try {
+          console.log('Uploading photo to S3...');
           finalPhotoUrl = await uploadPhotoToS3(photoUri);
           console.log('Photo uploaded to S3:', finalPhotoUrl);
         } catch (error) {
@@ -170,7 +141,7 @@ export default function ReportScreenNew() {
             'Could not upload photo. Submit report without photo?',
             [
               { text: 'Cancel', style: 'cancel', onPress: () => setLoading(false) },
-              { text: 'Submit Without Photo', onPress: () => submitReport(undefined) },
+              { text: 'Submit Without Photo', onPress: () => submitReport(undefined, lat, lng) },
             ]
           );
           return;
@@ -178,7 +149,7 @@ export default function ReportScreenNew() {
       }
 
       // Submit report with S3 URL
-      await submitReport(finalPhotoUrl);
+      await submitReport(finalPhotoUrl, lat, lng);
     } catch (error: any) {
       console.error('Report submission error:', error);
       Alert.alert('Error', error.message || 'Failed to submit report');
@@ -186,21 +157,23 @@ export default function ReportScreenNew() {
     }
   };
 
-  const submitReport = async (s3PhotoUrl: string | undefined) => {
+  const submitReport = async (s3PhotoUrl: string | undefined, lat: number, lng: number) => {
     try {
+      console.log('Submitting report...');
       const userId = await getUserId();
 
       const body = {
         user_id: userId,
         category,
-        lat: location!.coords.latitude,
-        lng: location!.coords.longitude,
-        neighborhood_id: 'downtown', // TODO: Calculate from lat/lng
+        lat,
+        lng,
+        neighborhood_id: 'downtown',
         description,
         severity,
-        photo_url: s3PhotoUrl, // ← NOW SENDS S3 URL INSTEAD OF LOCAL PATH
+        photo_url: s3PhotoUrl,
       };
 
+      console.log('Posting to /posts:', body);
       await apiPost('/posts', body);
 
       Alert.alert('Success', 'Report submitted successfully!', [
@@ -211,7 +184,6 @@ export default function ReportScreenNew() {
             setDescription('');
             setSeverity(3);
             setPhotoUri(null);
-            setAiSuggestion(null);
           },
         },
       ]);
@@ -351,21 +323,6 @@ export default function ReportScreenNew() {
         <Card style={[styles.section, styles.aiCard]}>
           <ActivityIndicator size="small" color={Colors.primary} />
           <Text style={styles.aiAnalyzing}>AI analyzing photo...</Text>
-        </Card>
-      )}
-
-      {aiSuggestion && !aiAnalyzing && (
-        <Card style={[styles.section, styles.aiCard]}>
-          <Text style={styles.aiTitle}>🤖 AI Suggestions</Text>
-          <Text style={styles.aiText}>Category: {getCategoryLabel(aiSuggestion.confirmed_category)}</Text>
-          <Text style={styles.aiText}>Severity: {aiSuggestion.severity}/5</Text>
-          <Text style={styles.aiText}>Description: {aiSuggestion.description}</Text>
-          <Button
-            title="Use AI Suggestions"
-            icon="✨"
-            size="small"
-            onPress={useAISuggestion}
-          />
         </Card>
       )}
 
