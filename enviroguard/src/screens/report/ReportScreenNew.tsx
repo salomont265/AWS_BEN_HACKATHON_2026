@@ -318,14 +318,6 @@ export default function ReportScreenNew() {
         )}
       </Card>
 
-      {/* AI Analysis */}
-      {aiAnalyzing && (
-        <Card style={[styles.section, styles.aiCard]}>
-          <ActivityIndicator size="small" color={Colors.primary} />
-          <Text style={styles.aiAnalyzing}>AI analyzing photo...</Text>
-        </Card>
-      )}
-
       {/* Submit */}
       <Button
         title="Submit Report"
