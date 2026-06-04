@@ -61,8 +61,12 @@ export default function ReportScreenNew({ navigation }: any) {
               Alert.alert('Success', 'Location found!');
             },
             (error) => {
-              console.error('Geolocation error:', error);
-              Alert.alert('Error', 'Could not get location. Using default NYC location.');
+              // User denied permission or geolocation failed - use default location
+              if (error.code !== 1) {
+                // Only log if it's not a user denial (code 1)
+                console.warn('Geolocation error:', error.message);
+              }
+              Alert.alert('Location Not Available', 'Using default NYC location for your report.');
             }
           );
         } else {
