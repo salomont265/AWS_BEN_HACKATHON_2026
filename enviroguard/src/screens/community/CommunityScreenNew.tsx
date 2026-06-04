@@ -108,7 +108,7 @@ function PostCard({ post, onAgree, userAgreed }: { post: Post; onAgree: (id: str
         <Image
           source={{ uri: post.photo_url }}
           style={styles.postImage}
-          resizeMode="cover"
+          resizeMode="contain"
         />
       )}
 
@@ -133,12 +133,18 @@ function PostCard({ post, onAgree, userAgreed }: { post: Post; onAgree: (id: str
           <Text style={styles.agreeCount}>{post.agreement_count}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionButton}>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => Alert.alert('Comments', 'Comment feature coming soon!')}
+        >
           <Text style={styles.actionIcon}>💬</Text>
           <Text style={styles.actionText}>Comment</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionButton}>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => Alert.alert('Share', `Report ID: ${post.post_id}\n\nShare this report with your community!`)}
+        >
           <Text style={styles.actionIcon}>🔗</Text>
           <Text style={styles.actionText}>Share</Text>
         </TouchableOpacity>
@@ -560,10 +566,11 @@ const styles = StyleSheet.create({
   },
   postImage: {
     width: '100%',
-    height: 200,
+    minHeight: 200,
+    maxHeight: 400,
     borderRadius: 12,
     marginBottom: Spacing.unit(1.5),
-    backgroundColor: Colors.border,
+    backgroundColor: Colors.background,
   },
   postLocation: {
     ...Typography.caption,
