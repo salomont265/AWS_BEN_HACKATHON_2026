@@ -14,6 +14,7 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  Image,
 } from 'react-native';
 import { createMaterialTopTabNavigator } from '@react-navigation/material-top-tabs';
 import { Colors, Typography, Spacing } from '@/theme/tokens';
@@ -102,6 +103,14 @@ function PostCard({ post, onAgree, userAgreed }: { post: Post; onAgree: (id: str
       </View>
 
       <Text style={styles.postDescription}>{post.description}</Text>
+
+      {post.photo_url && (
+        <Image
+          source={{ uri: post.photo_url }}
+          style={styles.postImage}
+          resizeMode="cover"
+        />
+      )}
 
       <Text style={styles.postLocation}>📍 {post.neighborhood_id}</Text>
 
@@ -548,6 +557,13 @@ const styles = StyleSheet.create({
     ...Typography.body,
     marginBottom: Spacing.unit(1),
     lineHeight: 20,
+  },
+  postImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 12,
+    marginBottom: Spacing.unit(1.5),
+    backgroundColor: Colors.border,
   },
   postLocation: {
     ...Typography.caption,

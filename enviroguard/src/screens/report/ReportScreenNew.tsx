@@ -26,7 +26,7 @@ import { uploadPhotoToS3 } from '@/services/photoUploadService';
 
 type Category = 'noise' | 'air' | 'litter' | 'pollen' | 'general';
 
-export default function ReportScreenNew() {
+export default function ReportScreenNew({ navigation }: any) {
   const [category, setCategory] = useState<Category>('noise');
   const [description, setDescription] = useState('');
   const [severity, setSeverity] = useState(3);
@@ -41,15 +41,47 @@ export default function ReportScreenNew() {
 
   const getCurrentLocation = async () => {
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission needed', 'Location permission is required to submit reports');
-        return;
+      if (Platform.OS === 'web') {
+        // Use browser geolocation API for web
+        if ('geolocation' in navigator) {
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              setLocation({
+                coords: {
+                  latitude: position.coords.latitude,
+                  longitude: position.coords.longitude,
+                  altitude: null,
+                  accuracy: position.coords.accuracy,
+                  altitudeAccuracy: null,
+                  heading: null,
+                  speed: null,
+                },
+                timestamp: position.timestamp,
+              } as any);
+              Alert.alert('Success', 'Location found!');
+            },
+            (error) => {
+              console.error('Geolocation error:', error);
+              Alert.alert('Error', 'Could not get location. Using default NYC location.');
+            }
+          );
+        } else {
+          Alert.alert('Error', 'Geolocation not supported. Using default NYC location.');
+        }
+      } else {
+        // Use expo-location for mobile
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permission needed', 'Location permission is required');
+          return;
+        }
+        const loc = await Location.getCurrentPositionAsync({});
+        setLocation(loc);
+        Alert.alert('Success', 'Location found!');
       }
-      const loc = await Location.getCurrentPositionAsync({});
-      setLocation(loc);
     } catch (error) {
       console.error('Error getting location:', error);
+      Alert.alert('Error', 'Could not get location');
     }
   };
 
@@ -174,21 +206,33 @@ export default function ReportScreenNew() {
       };
 
       console.log('Posting to /posts:', body);
-      await apiPost('/posts', body);
+      const response = await apiPost('/posts', body);
+      console.log('Post created:', response);
 
-      Alert.alert('Success', 'Report submitted successfully!', [
-        {
-          text: 'OK',
-          onPress: () => {
-            // Reset form
-            setDescription('');
-            setSeverity(3);
-            setPhotoUri(null);
-          },
-        },
-      ]);
-    } finally {
+      // Reset form immediately
+      setDescription('');
+      setSeverity(3);
+      setPhotoUri(null);
       setLoading(false);
+
+      // Show success and navigate to Community tab
+      Alert.alert(
+        '✅ Report Submitted!',
+        'Your report has been shared with the community. Thank you for helping make our environment better!',
+        [
+          {
+            text: 'View in Community',
+            onPress: () => navigation.navigate('CommunityTab'),
+          },
+          {
+            text: 'Submit Another',
+            style: 'cancel',
+          },
+        ]
+      );
+    } catch (error) {
+      setLoading(false);
+      throw error;
     }
   };
 
