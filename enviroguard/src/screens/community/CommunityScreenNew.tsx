@@ -135,7 +135,10 @@ function PostCard({ post, onAgree, userAgreed }: { post: Post; onAgree: (id: str
 
         <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => Alert.alert('Comments', 'Comment feature coming soon!')}
+          onPress={() => {
+            console.log('Comment button clicked');
+            Alert.alert('Comments', 'Comment feature coming soon!');
+          }}
         >
           <Text style={styles.actionIcon}>💬</Text>
           <Text style={styles.actionText}>Comment</Text>
@@ -143,7 +146,10 @@ function PostCard({ post, onAgree, userAgreed }: { post: Post; onAgree: (id: str
 
         <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => Alert.alert('Share', `Report ID: ${post.post_id}\n\nShare this report with your community!`)}
+          onPress={() => {
+            console.log('Share button clicked for post:', post.post_id);
+            Alert.alert('Share Report', `Report ID: ${post.post_id}\n\nShare this report with your community!`);
+          }}
         >
           <Text style={styles.actionIcon}>🔗</Text>
           <Text style={styles.actionText}>Share</Text>
