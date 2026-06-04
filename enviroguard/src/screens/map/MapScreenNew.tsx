@@ -27,6 +27,7 @@ import { Colors, Typography, Spacing } from '@/theme/tokens';
 import { apiGet } from '../../utils/api';
 import Card from '../../components/Card';
 import Button from '../../components/Button';
+import HeatMapWeb from '../../components/HeatMapWeb';
 
 const { width, height } = Dimensions.get('window');
 
@@ -49,11 +50,15 @@ interface MapData {
   };
 }
 
+type LayerType = 'combined' | 'air' | 'noise' | 'pollen' | 'litter' | 'reports';
+
 export default function MapScreenNew() {
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [mapData, setMapData] = useState<MapData | null>(null);
+  const [mapZones, setMapZones] = useState<MapData[]>([]);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<'api' | 'community'>('api');
+  const [selectedLayer, setSelectedLayer] = useState<LayerType>('combined');
   const [showBottomSheet, setShowBottomSheet] = useState(false);
   const mapRef = useRef<MapView>(null);
 
@@ -101,12 +106,31 @@ export default function MapScreenNew() {
   const loadMapData = async (lat: number, lng: number) => {
     try {
       setLoading(true);
-      const data = await apiGet<MapData>('/map-data', {
-        lat: lat.toString(),
-        lng: lng.toString(),
-        mode,
-      });
-      setMapData(data);
+
+      // Fetch data for multiple NYC neighborhoods in parallel
+      const neighborhoods = [
+        { name: 'Downtown', lat: 40.7128, lng: -74.006 },
+        { name: 'Williamsburg', lat: 40.7081, lng: -73.9571 },
+        { name: 'Brooklyn Heights', lat: 40.6958, lng: -73.9936 },
+        { name: 'East Village', lat: 40.7264, lng: -73.9819 },
+        { name: 'Chelsea', lat: 40.7465, lng: -74.0014 },
+        { name: 'Upper West Side', lat: 40.7870, lng: -73.9754 },
+      ];
+
+      const results = await Promise.all(
+        neighborhoods.map((loc) =>
+          apiGet<MapData>('/map-data', {
+            lat: loc.lat.toString(),
+            lng: loc.lng.toString(),
+            mode,
+          })
+        )
+      );
+
+      setMapZones(results);
+      if (results.length > 0) {
+        setMapData(results[0]);
+      }
     } catch (error) {
       console.error('Failed to load map data:', error);
     } finally {
@@ -150,6 +174,39 @@ export default function MapScreenNew() {
     setMode(mode === 'api' ? 'community' : 'api');
   };
 
+  const extractHeatPoints = (zones: MapData[], layer: LayerType) => {
+    return zones.map((zone) => {
+      let intensity = 0;
+
+      switch (layer) {
+        case 'combined':
+          intensity = zone.composite_score;
+          break;
+        case 'air':
+          intensity = zone.layers.air.aqi / 5; // Scale 0-500 to 0-100
+          break;
+        case 'noise':
+          intensity = zone.layers.noise.index;
+          break;
+        case 'pollen':
+          intensity = zone.layers.pollen.total_index;
+          break;
+        case 'litter':
+          intensity = zone.layers.litter.complaint_count_24h * 2; // Scale complaints
+          break;
+        case 'reports':
+          intensity = zone.layers.general.report_count_24h * 3; // Scale reports
+          break;
+      }
+
+      return {
+        lat: zone.lat,
+        lng: zone.lng,
+        intensity: Math.min(intensity, 100), // Cap at 100
+      };
+    });
+  };
+
   // Mock neighborhood data for web display
   const mockNeighborhoods = [
     { name: 'Downtown', severity: 'low', score: 32, lat: 40.7589, lng: -73.9851 },
@@ -176,17 +233,15 @@ export default function MapScreenNew() {
       {/* Map */}
       {Platform.OS === 'web' ? (
         <View style={styles.map}>
-          {/* Embedded OpenStreetMap - No API key needed */}
-          <iframe
-            style={{
-              width: '100%',
-              height: '100%',
-              border: 0,
-            }}
-            loading="lazy"
-            src={`https://www.openstreetmap.org/export/embed.html?bbox=-74.05,40.68,-73.95,40.75&layer=mapnik&marker=${selectedNeighborhood.lat},${selectedNeighborhood.lng}`}
-            title="NYC Environmental Risk Map"
-          />
+          {/* Heat Map */}
+          {mapZones.length > 0 && (
+            <HeatMapWeb
+              center={{ lat: 40.7128, lng: -74.006 }}
+              zoom={12}
+              heatPoints={extractHeatPoints(mapZones, selectedLayer)}
+              maxIntensity={100}
+            />
+          )}
 
           {/* Controls overlay */}
           <View style={styles.webMapControls}>
@@ -207,6 +262,50 @@ export default function MapScreenNew() {
                   👥 Community
                 </Text>
               </TouchableOpacity>
+            </View>
+
+            {/* Layer Filter Tabs */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.layerFilterContainer}
+            >
+              {(['combined', 'air', 'noise', 'pollen', 'litter', 'reports'] as LayerType[]).map((layer) => (
+                <TouchableOpacity
+                  key={layer}
+                  style={[styles.layerChip, selectedLayer === layer && styles.layerChipActive]}
+                  onPress={() => setSelectedLayer(layer)}
+                >
+                  <Text style={[styles.layerChipText, selectedLayer === layer && styles.layerChipTextActive]}>
+                    {layer === 'combined' ? '🔀 Combined' :
+                     layer === 'air' ? '💨 Air Quality' :
+                     layer === 'noise' ? '🔊 Noise' :
+                     layer === 'pollen' ? '🌸 Pollen' :
+                     layer === 'litter' ? '🗑️ Litter' : '📝 Reports'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* Legend */}
+          <View style={styles.legend}>
+            <Text style={styles.legendTitle}>Risk Level</Text>
+            <View style={styles.legendRow}>
+              <View style={[styles.legendDot, { backgroundColor: '#00ff00' }]} />
+              <Text style={styles.legendText}>Low (0-25)</Text>
+            </View>
+            <View style={styles.legendRow}>
+              <View style={[styles.legendDot, { backgroundColor: '#ffff00' }]} />
+              <Text style={styles.legendText}>Moderate (26-50)</Text>
+            </View>
+            <View style={styles.legendRow}>
+              <View style={[styles.legendDot, { backgroundColor: '#ffa500' }]} />
+              <Text style={styles.legendText}>High (51-75)</Text>
+            </View>
+            <View style={styles.legendRow}>
+              <View style={[styles.legendDot, { backgroundColor: '#ff0000' }]} />
+              <Text style={styles.legendText}>Very High (76-100)</Text>
             </View>
           </View>
 
@@ -651,5 +750,65 @@ const styles = StyleSheet.create({
     color: Colors.surface,
     fontWeight: '700',
     fontSize: 12,
+  },
+  layerFilterContainer: {
+    marginTop: Spacing.unit(1),
+    maxHeight: 50,
+  },
+  layerChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    marginRight: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  layerChipActive: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  layerChipText: {
+    fontSize: 14,
+    color: Colors.textSecondary,
+    fontWeight: '500',
+  },
+  layerChipTextActive: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  legend: {
+    position: 'absolute',
+    bottom: 100,
+    right: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    padding: 12,
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  legendTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+    color: Colors.text,
+  },
+  legendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 4,
+  },
+  legendDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    marginRight: 8,
+  },
+  legendText: {
+    fontSize: 12,
+    color: Colors.textSecondary,
   },
 });

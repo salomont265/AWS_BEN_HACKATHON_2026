@@ -21,6 +21,7 @@ import { Colors, Typography, Spacing } from '@/theme/tokens';
 import Button from '../../components/Button';
 import Card from '../../components/Card';
 import { apiPost, getUserId } from '../../utils/api';
+import { uploadPhotoToS3 } from '@/services/photoUploadService';
 
 type Category = 'noise' | 'air' | 'litter' | 'pollen' | 'general';
 
@@ -136,19 +137,51 @@ export default function ReportScreenNew() {
       return;
     }
 
+    setLoading(true);
     try {
-      setLoading(true);
+      let finalPhotoUrl: string | undefined = undefined;
+
+      // Upload photo to S3 first if photo exists
+      if (photoUri) {
+        try {
+          finalPhotoUrl = await uploadPhotoToS3(photoUri);
+          console.log('Photo uploaded to S3:', finalPhotoUrl);
+        } catch (error) {
+          console.error('Photo upload error:', error);
+          Alert.alert(
+            'Photo Upload Failed',
+            'Could not upload photo. Submit report without photo?',
+            [
+              { text: 'Cancel', style: 'cancel', onPress: () => setLoading(false) },
+              { text: 'Submit Without Photo', onPress: () => submitReport(undefined) },
+            ]
+          );
+          return;
+        }
+      }
+
+      // Submit report with S3 URL
+      await submitReport(finalPhotoUrl);
+    } catch (error: any) {
+      console.error('Report submission error:', error);
+      Alert.alert('Error', error.message || 'Failed to submit report');
+      setLoading(false);
+    }
+  };
+
+  const submitReport = async (s3PhotoUrl: string | undefined) => {
+    try {
       const userId = await getUserId();
 
       const body = {
         user_id: userId,
         category,
-        lat: location.coords.latitude,
-        lng: location.coords.longitude,
+        lat: location!.coords.latitude,
+        lng: location!.coords.longitude,
         neighborhood_id: 'downtown', // TODO: Calculate from lat/lng
         description,
         severity,
-        photo_url: photoUri || undefined,
+        photo_url: s3PhotoUrl, // ← NOW SENDS S3 URL INSTEAD OF LOCAL PATH
       };
 
       await apiPost('/posts', body);
@@ -165,8 +198,6 @@ export default function ReportScreenNew() {
           },
         },
       ]);
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to submit report');
     } finally {
       setLoading(false);
     }
