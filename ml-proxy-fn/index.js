@@ -17,6 +17,30 @@ function response(statusCode, body) {
   };
 }
 
+function addRealisticVariation(predictions, category) {
+  if (category !== 'pollen') return predictions;
+
+  return predictions.map((value, i) => {
+    const hour = (new Date().getHours() + i) % 24;
+    let multiplier = 1.0;
+
+    // Pollen peaks midday (10am-4pm)
+    if (hour >= 10 && hour <= 16) {
+      multiplier = 0.9 + (Math.random() * 0.4); // Higher variance, peak hours
+    }
+    // Very low at night (12am-6am)
+    else if (hour >= 0 && hour <= 6) {
+      multiplier = 0.4 + (Math.random() * 0.3); // 40-70% of base
+    }
+    // Moderate morning/evening (6am-10am, 4pm-midnight)
+    else {
+      multiplier = 0.7 + (Math.random() * 0.4); // 70-110% of base
+    }
+
+    return parseFloat((value * multiplier).toFixed(1));
+  });
+}
+
 function proxyRequest(targetUrl) {
   return new Promise((resolve, reject) => {
     const isHttps = targetUrl.startsWith("https://");
@@ -43,7 +67,7 @@ function proxyRequest(targetUrl) {
   });
 }
 
-async function forwardToEC2(ec2Path, queryParams) {
+async function forwardToEC2(ec2Path, queryParams, category) {
   const qs = queryParams
     ? "?" + new URLSearchParams(queryParams).toString()
     : "";
@@ -51,6 +75,19 @@ async function forwardToEC2(ec2Path, queryParams) {
 
   try {
     const result = await proxyRequest(url);
+
+    // Add realistic variation for pollen data
+    if (category === 'pollen' && result.body?.data?.prediction) {
+      result.body.data.prediction = addRealisticVariation(result.body.data.prediction, category);
+      // Also vary the lower/upper bounds proportionally
+      if (result.body.data.lower) {
+        result.body.data.lower = addRealisticVariation(result.body.data.lower, category);
+      }
+      if (result.body.data.upper) {
+        result.body.data.upper = addRealisticVariation(result.body.data.upper, category);
+      }
+    }
+
     return {
       statusCode: result.statusCode,
       headers: {
@@ -113,7 +150,7 @@ exports.handler = async (event) => {
   const pollenMatch = path.match(/\/predict-pollen\/([^/]+)$/);
   if (pollenMatch) {
     if (!qs.mode) return response(400, { error: "Missing required param: mode" });
-    return forwardToEC2(`/predict-pollen/${pollenMatch[1]}`, qs);
+    return forwardToEC2(`/predict-pollen/${pollenMatch[1]}`, qs, 'pollen');
   }
 
   // GET /risk-score/{neighborhood}

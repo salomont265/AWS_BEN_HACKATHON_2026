@@ -6,6 +6,7 @@ const {
   QueryCommand,
   UpdateCommand,
   BatchGetCommand,
+  ScanCommand,
 } = require("@aws-sdk/lib-dynamodb");
 const { SNSClient, PublishCommand } = require("@aws-sdk/client-sns");
 const { SESClient, SendEmailCommand } = require("@aws-sdk/client-ses");
@@ -227,6 +228,28 @@ async function createPetition(event) {
     status: "draft",
     created_at,
   });
+}
+
+// GET /petitions (list all active petitions)
+async function listPetitions(event) {
+  const queryParams = event.queryStringParameters || {};
+  const status = queryParams.status || 'active';
+
+  try {
+    const result = await ddb.send(
+      new ScanCommand({
+        TableName: "petitions",
+        FilterExpression: "#status = :status",
+        ExpressionAttributeNames: { "#status": "status" },
+        ExpressionAttributeValues: { ":status": status },
+      })
+    );
+
+    return response(200, { petitions: result.Items || [] });
+  } catch (err) {
+    console.error("listPetitions failed:", err);
+    return response(500, { error: "Internal server error" });
+  }
 }
 
 // GET /petitions/{id}
@@ -479,6 +502,7 @@ exports.handler = async (event) => {
     return response(200, { message: "CORS preflight OK" });
   }
 
+  if (method === "GET" && path.endsWith("/petitions") && !path.match(/\/petitions\/[^/]+$/)) return listPetitions(event);
   if (method === "POST" && path.endsWith("/petitions")) return createPetition(event);
   if (method === "GET" && path.match(/\/petitions\/[^/]+$/) && !path.includes("/sign") && !path.includes("/submit")) return getPetition(event);
   if (method === "POST" && path.endsWith("/sign")) return signPetition(event);

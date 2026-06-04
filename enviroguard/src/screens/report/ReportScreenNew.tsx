@@ -62,17 +62,33 @@ export default function ReportScreenNew() {
   };
 
   const pickImage = async () => {
-    const result = await ImagePicker.launchImagePickerAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.7,
-    });
+    if (Platform.OS === 'web') {
+      // Use HTML5 file input for web
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.onchange = (e: any) => {
+        const file = e.target.files?.[0];
+        if (file) {
+          const uri = URL.createObjectURL(file);
+          setPhotoUri(uri);
+          analyzePhoto(uri);
+        }
+      };
+      input.click();
+    } else {
+      // Use ImagePicker for mobile
+      const result = await ImagePicker.launchImagePickerAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.7,
+      });
 
-    if (!result.canceled && result.assets[0]) {
-      setPhotoUri(result.assets[0].uri);
-      // Simulate AI analysis
-      analyzePhoto(result.assets[0].uri);
+      if (!result.canceled && result.assets[0]) {
+        setPhotoUri(result.assets[0].uri);
+        analyzePhoto(result.assets[0].uri);
+      }
     }
   };
 
