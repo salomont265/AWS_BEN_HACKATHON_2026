@@ -443,7 +443,6 @@ Full deployment guide: `docs/technical/DEPLOYMENT_INSTRUCTIONS.md`
 
 **Developer:** Salomon  
 **Event:** AWS BEN Hackathon 2026  
-**Dates:** May 14 - June 9, 2026  
 **AI Pair Programmer:** Claude Code (Sonnet 4.5)  
 
 ---

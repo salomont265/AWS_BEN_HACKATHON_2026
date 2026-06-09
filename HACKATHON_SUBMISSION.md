@@ -110,7 +110,7 @@ Unlike other environmental apps that just show current data, EnviroGuard uses LS
 - AI finds the actual responsible official (not hardcoded lists)
 
 ### 4. **Fully Serverless**
-Zero servers to manage (except ML server). Scales automatically, pay only for what you use. Complete AWS best practices.
+Zero servers to manage (except ML server). Scales automatically, pay only for what you use.
 
 ### 5. **Production-Ready**
 Not a prototype - fully deployed, tested, and ready for real users at http://44.204.121.129
@@ -206,7 +206,7 @@ AWS_BEN_HACKATHON_2026/
 
 ## 🏅 AWS Services Showcase
 
-This project demonstrates mastery of core AWS services:
+This project uses the following AWS services:
 
 ### Compute
 - **Lambda:** 6 functions handling all backend logic
@@ -227,21 +227,6 @@ This project demonstrates mastery of core AWS services:
 ### AI/ML
 - **SageMaker:** (Future: Model training)
 - **Bedrock:** (Alternative to Anthropic Claude API)
-
----
-
-## 📊 Development Timeline
-
-**May 14:** Project kickoff, requirements gathering  
-**May 20-25:** Backend Lambda functions + DynamoDB schema  
-**May 26-30:** ML model training (LSTM) + Flask server  
-**May 31-Jun 2:** Frontend development (React Native)  
-**Jun 3:** Claude Vision integration  
-**Jun 4:** AI petition generation  
-**Jun 5-8:** Bug fixes, testing, optimization  
-**Jun 9:** Final features (delete, expandable UI), documentation, deployment  
-
-**Total:** 26 days, ~200 hours of development
 
 ---
 
@@ -341,18 +326,7 @@ MIT License - Free to use, modify, and distribute
 
 ---
 
-## 🎯 Why EnviroGuard Should Win
-
-1. **Complete Full-Stack Solution:** Not a prototype - production-ready with all core features working
-2. **AWS Best Practices:** Serverless-first, scalable, cost-optimized architecture
-3. **AI Integration:** Cutting-edge Claude API for vision and text generation
-4. **Real-World Impact:** Solves actual civic engagement problem, ready for real communities
-5. **Technical Excellence:** Clean code, comprehensive docs, deployed and tested
-6. **Innovation:** First platform to auto-generate petitions with AI-identified officials
-
----
-
-**Built with ❤️ for healthier communities and a better planet** 🌿
+**Built with ❤️ for healthier communities** 🌿
 
 ---
 
