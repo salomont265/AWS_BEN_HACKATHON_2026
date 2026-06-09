@@ -1,5 +1,4 @@
-import React, { useEffect, useRef } from 'react';
-import { View, StyleSheet } from 'react-native';
+import React, { useEffect, useRef, createElement } from 'react';
 
 // Dynamic import for web only
 let L: any;
@@ -12,7 +11,7 @@ if (typeof window !== 'undefined') {
 interface HeatPoint {
   lat: number;
   lng: number;
-  intensity: number; // 0-100 scale
+  intensity: number;
 }
 
 interface HeatMapWebProps {
@@ -23,20 +22,30 @@ interface HeatMapWebProps {
 }
 
 export default function HeatMapWeb({ center, zoom, heatPoints, maxIntensity = 100 }: HeatMapWebProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const heatLayerRef = useRef<any>(null);
 
   useEffect(() => {
-    if (!L || mapRef.current) return;
+    if (!L || !containerRef.current || mapRef.current) return;
+
+    console.log('Initializing Leaflet map at', center);
 
     // Initialize map
-    const map = L.map('leaflet-map').setView([center.lat, center.lng], zoom);
+    const map = L.map(containerRef.current, {
+      zoomControl: true,
+      attributionControl: true,
+    }).setView([center.lat, center.lng], zoom);
     mapRef.current = map;
 
-    // Add tile layer (OpenStreetMap)
+    // Add tile layer (using a brighter, more visible tileset)
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors',
+      maxZoom: 19,
+      minZoom: 10,
     }).addTo(map);
+
+    console.log('Leaflet map initialized');
 
     return () => {
       if (mapRef.current) {
@@ -49,26 +58,32 @@ export default function HeatMapWeb({ center, zoom, heatPoints, maxIntensity = 10
   useEffect(() => {
     if (!mapRef.current || !L) return;
 
+    console.log('Updating heat layer with', heatPoints.length, 'points');
+
     // Remove existing heat layer
     if (heatLayerRef.current) {
       mapRef.current.removeLayer(heatLayerRef.current);
     }
 
-    // Convert to leaflet.heat format: [[lat, lng, intensity], ...]
+    // Convert to leaflet.heat format
     const heatData = heatPoints.map((p) => [p.lat, p.lng, p.intensity]);
+    console.log('Heat data:', heatData);
 
-    // Add new heat layer
+    // Add new heat layer with much stronger colors
+    // Use a fixed radius in pixels - Leaflet handles the scaling automatically
     heatLayerRef.current = L.heatLayer(heatData, {
-      radius: 25,
-      blur: 15,
-      maxZoom: 17,
-      max: maxIntensity,
+      radius: 40,          // Fixed radius in pixels - stays visually consistent across zoom levels
+      blur: 20,            // Fixed blur
+      maxZoom: 18,
+      minZoom: 10,
+      max: maxIntensity * 0.5,  // Lower max to make colors more intense
+      minOpacity: 0.6,     // Minimum opacity so colors are always visible
       gradient: {
-        0.0: '#00ff00', // Green (low risk)
-        0.25: '#ffff00', // Yellow
-        0.5: '#ffa500', // Orange
-        0.75: '#ff4500', // Red-orange
-        1.0: '#ff0000', // Red (high risk)
+        0.0: 'green',      // Green for low
+        0.25: 'yellow',    // Yellow for low-moderate
+        0.5: 'orange',     // Orange for moderate-high
+        0.75: 'red',       // Red for high
+        1.0: 'darkred',    // Dark red for very high
       },
     }).addTo(mapRef.current);
 
@@ -76,17 +91,9 @@ export default function HeatMapWeb({ center, zoom, heatPoints, maxIntensity = 10
     mapRef.current.setView([center.lat, center.lng], zoom);
   }, [center, zoom, heatPoints, maxIntensity]);
 
-  return (
-    <View style={styles.container}>
-      <div id="leaflet-map" style={{ width: '100%', height: '100%' }} />
-    </View>
-  );
+  // Return pure HTML div using createElement to avoid JSX issues
+  return createElement('div', {
+    ref: containerRef,
+    style: { width: '100%', height: '100%' }
+  });
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    width: '100%',
-    height: '100%',
-  },
-});

@@ -1,39 +1,203 @@
 /**
- * Health & Alerts Screen - Tab 2
- * Shows 24h environmental forecasts with enhanced visualizations
+ * Health & Alerts Screen - Tab 2 (EnviroGuard v2)
+ * Shows 24h environmental forecasts with animated timeline scrubbing and overall risk score tracking
  */
 
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  ActivityIndicator,
+  TouchableOpacity,
+  Pressable,
+  Dimensions,
+  Platform,
+} from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+  useAnimatedReaction,
+  runOnJS,
+  interpolateColor,
+} from 'react-native-reanimated';
 import { Colors, Typography, Spacing } from '@/theme/tokens';
 import { fetchAllForecasts, ForecastData } from '../../services/forecastService';
+import { fetchWeather, WeatherResponse, getWindDirection, getUVLevel, convertWeatherToHourlyPredictions } from '../../services/weatherService';
 import Card from '../../components/Card';
 import MetricCard from '../../components/MetricCard';
+import FloatingLeaves from '../../components/FloatingLeaves';
 
-type MetricType = 'noise' | 'aqi' | 'pollen' | 'litter';
+// Reusable Theme Components
+import { ModeToggle, RiskPill, CommunityDataBadge } from '../../components/ThemeComponents';
+
+const { width } = Dimensions.get('window');
+
+// Custom Animated Hour Chip for Scrubber
+function HourChip({
+  hour,
+  isSelected,
+  onPress,
+}: {
+  hour: string;
+  isSelected: boolean;
+  onPress: () => void;
+}) {
+  const scale = useSharedValue(1);
+  const colorProgress = useSharedValue(isSelected ? 1 : 0);
+
+  useEffect(() => {
+    scale.value = withTiming(isSelected ? 1.1 : 1.0, { duration: 150 });
+    colorProgress.value = withTiming(isSelected ? 1 : 0, { duration: 150 });
+  }, [isSelected]);
+
+  const animatedStyle = useAnimatedStyle(() => {
+    const backgroundColor = interpolateColor(
+      colorProgress.value,
+      [0, 1],
+      ['#FFFFFF', Colors.primary]
+    );
+    const borderColor = interpolateColor(
+      colorProgress.value,
+      [0, 1],
+      [Colors.border, Colors.primary]
+    );
+    return {
+      transform: [{ scale: scale.value }],
+      backgroundColor,
+      borderColor,
+    };
+  });
+
+  const animatedTextStyle = useAnimatedStyle(() => {
+    const color = interpolateColor(
+      colorProgress.value,
+      [0, 1],
+      [Colors.textSecondary, '#FFFFFF']
+    );
+    return { color };
+  });
+
+  return (
+    <Pressable onPress={onPress} style={styles.chipPressable}>
+      <Animated.View style={[styles.hourChip, animatedStyle]}>
+        <Animated.Text style={[styles.hourChipText, animatedTextStyle]}>
+          {hour}
+        </Animated.Text>
+      </Animated.View>
+    </Pressable>
+  );
+}
+
+// Custom Slot-Machine Count-Up Risk Pill
+function AnimatedRiskPill({ score }: { score: number }) {
+  const [displayScore, setDisplayScore] = useState(score);
+  const animatedScore = useSharedValue(score);
+
+  useEffect(() => {
+    animatedScore.value = withTiming(score, { duration: 400 });
+  }, [score]);
+
+  useAnimatedReaction(
+    () => Math.round(animatedScore.value),
+    (nextVal) => {
+      if (nextVal !== displayScore) {
+        runOnJS(setDisplayScore)(nextVal);
+      }
+    },
+    [displayScore]
+  );
+
+  const animatedStyle = useAnimatedStyle(() => {
+    const backgroundColor = interpolateColor(
+      animatedScore.value,
+      [20, 50, 80],
+      [Colors.safe, Colors.warning, Colors.danger]
+    );
+    return {
+      backgroundColor,
+    };
+  });
+
+  return (
+    <Animated.View style={[styles.riskPill, animatedStyle]}>
+      <Text style={styles.riskPillText}>{displayScore}</Text>
+    </Animated.View>
+  );
+}
 
 export default function HealthScreen() {
   const [forecast, setForecast] = useState<ForecastData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedMetric, setSelectedMetric] = useState<MetricType>('noise');
+  const [weatherData, setWeatherData] = useState<WeatherResponse | null>(null);
+  const [mode, setMode] = useState<'api' | 'community'>('api');
+
+  // Hour Scrubber State
+  const [selectedHourIndex, setSelectedHourIndex] = useState(0);
+  const [activeHourIndex, setActiveHourIndex] = useState(0);
+
+  // Reanimated fade-through opacity for metric cards
+  const metricsOpacity = useSharedValue(1);
+
+  // MUST BE BEFORE ANY RETURNS
+  const metricsAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      opacity: metricsOpacity.value,
+    };
+  });
 
   useEffect(() => {
     loadForecast();
-  }, []);
+    loadWeather();
+  }, [mode]);
 
   const loadForecast = async () => {
     try {
-      const data = await fetchAllForecasts('downtown', 'ml');
+      setLoading(true);
+      const modelType = mode === 'api' ? 'ml' : 'ml'; // Both use ML for now
+      const data = await fetchAllForecasts('downtown', modelType);
       setForecast(data);
+      // Reset hourly index
+      setSelectedHourIndex(0);
+      setActiveHourIndex(0);
     } catch (error) {
       console.error('Failed to load forecast:', error);
-      alert('Failed to load forecast: ' + (error as Error).message);
     } finally {
       setLoading(false);
     }
   };
 
-  if (loading) {
+  const loadWeather = async () => {
+    try {
+      const data = await fetchWeather(40.7128, -74.006);
+      setWeatherData(data);
+    } catch (error) {
+      console.error('Failed to load weather:', error);
+    }
+  };
+
+  const handleHourSelect = (index: number) => {
+    setSelectedHourIndex(index);
+    // Fade-through transition
+    metricsOpacity.value = withTiming(0, { duration: 100 }, (finished) => {
+      if (finished) {
+        runOnJS(setActiveHourIndex)(index);
+        metricsOpacity.value = withTiming(1, { duration: 100 });
+      }
+    });
+  };
+
+  const getHourLabel = (hourStr: string) => {
+    const val = parseInt(hourStr.split(':')[0], 10);
+    const ampm = val >= 12 ? 'PM' : 'AM';
+    const hourNum = val % 12 === 0 ? 12 : val % 12;
+    return `${hourNum} ${ampm}`;
+  };
+
+  if (loading || !forecast) {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color={Colors.primary} />
@@ -42,196 +206,158 @@ export default function HealthScreen() {
     );
   }
 
-  if (!forecast) {
-    return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.errorText}>Failed to load forecast data</Text>
-      </View>
-    );
-  }
+  // Active readings based on timeline scrubber selection
+  const activeNoise = forecast.noise[activeHourIndex]?.value || 0;
+  const activeAQI = forecast.aqi[activeHourIndex]?.value || 0;
+  const activePollen = forecast.pollen[activeHourIndex]?.value || 0;
+  const activeLitter = forecast.litter[activeHourIndex]?.value || 0;
 
-  const getNextPeakHours = () => {
-    const noisePeak = forecast.noise.reduce((max, p) => p.value > max.value ? p : max);
-    const aqiPeak = forecast.aqi.reduce((max, p) => p.value > max.value ? p : max);
-    const pollenPeak = forecast.pollen.reduce((max, p) => p.value > max.value ? p : max);
-    const litterPeak = forecast.litter.reduce((max, p) => p.value > max.value ? p : max);
-    return { noisePeak, aqiPeak, pollenPeak, litterPeak };
-  };
-
-  const { noisePeak, aqiPeak, pollenPeak, litterPeak } = getNextPeakHours();
-
-  const getMetricData = () => {
-    switch (selectedMetric) {
-      case 'noise':
-        return { data: forecast.noise, color: Colors.primary, unit: 'dB', icon: '🔊' };
-      case 'aqi':
-        return { data: forecast.aqi, color: Colors.warning, unit: '', icon: '💨' };
-      case 'pollen':
-        return { data: forecast.pollen, color: '#9C27B0', unit: '', icon: '🌸' };
-      case 'litter':
-        return { data: forecast.litter, color: Colors.danger, unit: '', icon: '🗑️' };
-    }
-  };
-
-  const metricInfo = getMetricData();
+  // Calculate composite risk score for selected hour
+  const activeScore = Math.round((activeNoise + activeAQI + activePollen + activeLitter) / 4);
 
   return (
     <View style={styles.container}>
+      <FloatingLeaves />
+
+      {/* Screen Header */}
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>📊 24-Hour Forecast</Text>
-        <Text style={styles.headerSubtitle}>{forecast.neighborhood_id.toUpperCase()}</Text>
+        <Text style={styles.headerTitle}>Environmental Forecast</Text>
+        <Text style={styles.headerSubtitle}>Williamsburg operations center</Text>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Peak Predictions Summary */}
-        <View style={styles.peaksSection}>
-          <Text style={styles.sectionTitle}>Peak Predictions</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <MetricCard
-              icon="🔊"
-              title="Noise Peak"
-              value={Math.round(noisePeak.value)}
-              unit="dB"
-              subtitle={`at ${noisePeak.hour}`}
-              severity={noisePeak.value > 80 ? 'high' : noisePeak.value > 60 ? 'moderate' : 'low'}
-            />
-            <MetricCard
-              icon="💨"
-              title="AQI Peak"
-              value={Math.round(aqiPeak.value)}
-              subtitle={`at ${aqiPeak.hour}`}
-              severity={aqiPeak.value > 100 ? 'high' : aqiPeak.value > 50 ? 'moderate' : 'low'}
-            />
-            <MetricCard
-              icon="🌸"
-              title="Pollen Peak"
-              value={Math.round(pollenPeak.value)}
-              subtitle={`at ${pollenPeak.hour}`}
-              severity={pollenPeak.value > 70 ? 'high' : pollenPeak.value > 40 ? 'moderate' : 'low'}
-            />
-            <MetricCard
-              icon="🗑️"
-              title="Litter Peak"
-              value={Math.round(litterPeak.value)}
-              subtitle={`at ${litterPeak.hour}`}
-              severity={litterPeak.value > 60 ? 'high' : litterPeak.value > 30 ? 'moderate' : 'low'}
-            />
-          </ScrollView>
+        {/* Toggle Mode */}
+        <View style={styles.toggleSection}>
+          <ModeToggle activeOption={mode} onChange={setMode} />
+          {mode === 'community' && <CommunityDataBadge />}
         </View>
 
-        {/* Metric Selector */}
-        <View style={styles.selectorSection}>
-          <Text style={styles.sectionTitle}>Detailed Forecast</Text>
-          <View style={styles.metricSelector}>
-            <TouchableOpacity
-              style={[styles.metricButton, selectedMetric === 'noise' && styles.metricButtonActive]}
-              onPress={() => setSelectedMetric('noise')}
-            >
-              <Text style={[styles.metricButtonText, selectedMetric === 'noise' && styles.metricButtonTextActive]}>
-                🔊 Noise
+        {/* Selected Hour Score & Overview */}
+        <Card style={styles.summaryCard}>
+          <View style={styles.summaryHeader}>
+            <View>
+              <Text style={styles.summaryTitle}>
+                Forecast for {forecast.noise[activeHourIndex]?.hour.slice(0, 5)}
               </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.metricButton, selectedMetric === 'aqi' && styles.metricButtonActive]}
-              onPress={() => setSelectedMetric('aqi')}
-            >
-              <Text style={[styles.metricButtonText, selectedMetric === 'aqi' && styles.metricButtonTextActive]}>
-                💨 AQI
+              <Text style={styles.summarySubtitle}>
+                Estimated Civic Safety Index
               </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.metricButton, selectedMetric === 'pollen' && styles.metricButtonActive]}
-              onPress={() => setSelectedMetric('pollen')}
-            >
-              <Text style={[styles.metricButtonText, selectedMetric === 'pollen' && styles.metricButtonTextActive]}>
-                🌸 Pollen
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.metricButton, selectedMetric === 'litter' && styles.metricButtonActive]}
-              onPress={() => setSelectedMetric('litter')}
-            >
-              <Text style={[styles.metricButtonText, selectedMetric === 'litter' && styles.metricButtonTextActive]}>
-                🗑️ Litter
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Enhanced Chart */}
-        <Card style={styles.chartCard}>
-          <View style={styles.chartHeader}>
-            <Text style={styles.chartTitle}>
-              {metricInfo.icon} {selectedMetric.toUpperCase()} Levels
-            </Text>
-            <Text style={styles.chartSubtitle}>Next 24 hours</Text>
-          </View>
-
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chartScroll}>
-            <View style={styles.chartContainer}>
-              {metricInfo.data.slice(0, 24).map((hour, index) => {
-                const maxValue = Math.max(...metricInfo.data.slice(0, 24).map(h => h.value));
-                const heightPercent = (hour.value / maxValue) * 100;
-
-                return (
-                  <View key={hour.hour} style={styles.barContainer}>
-                    <View style={styles.barWrapper}>
-                      <View
-                        style={[
-                          styles.bar,
-                          {
-                            height: `${heightPercent}%`,
-                            backgroundColor: metricInfo.color,
-                            opacity: index === 0 ? 1 : 0.7,
-                          },
-                        ]}
-                      />
-                    </View>
-                    <Text style={[styles.barLabel, index === 0 && styles.barLabelCurrent]}>
-                      {hour.hour.slice(0, 5)}
-                    </Text>
-                    <Text style={[styles.barValue, index === 0 && styles.barValueCurrent]}>
-                      {Math.round(hour.value)}
-                    </Text>
-                  </View>
-                );
-              })}
             </View>
-          </ScrollView>
+            <AnimatedRiskPill score={activeScore} />
+          </View>
         </Card>
 
-        {/* Health Recommendations */}
-        <Card style={styles.recommendationsCard}>
-          <Text style={styles.recommendationsTitle}>💡 Health Recommendations</Text>
-          <View style={styles.recommendation}>
-            <Text style={styles.recommendationIcon}>✓</Text>
-            <Text style={styles.recommendationText}>
-              Best outdoor times: 6-8 AM and after 8 PM
+        {/* 24-Hour Timeline Scrubber */}
+        <View style={styles.scrubberSection}>
+          <Text style={styles.sectionTitle}>Timeline Scrubber</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.scrubberScroll}
+          >
+            {forecast.noise.slice(0, 24).map((item, idx) => (
+              <HourChip
+                key={item.hour}
+                hour={getHourLabel(item.hour)}
+                isSelected={selectedHourIndex === idx}
+                onPress={() => handleHourSelect(idx)}
+              />
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* Metric Cards - Fade-Through Transition */}
+        <Animated.View style={[styles.metricsGrid, metricsAnimatedStyle]}>
+          {/* Noise */}
+          <Card style={styles.metricCard}>
+            <Text style={styles.metricIcon}>🔊</Text>
+            <Text style={styles.metricLabel}>Noise Level</Text>
+            <Text style={[styles.metricValue, Typography.tabularNums]}>
+              {Math.round(activeNoise)}
             </Text>
-          </View>
-          <View style={styles.recommendation}>
-            <Text style={styles.recommendationIcon}>⚠️</Text>
-            <Text style={styles.recommendationText}>
-              Avoid strenuous activity during peak hours
+            <Text style={styles.metricUnit}>dB</Text>
+            <Text style={styles.metricStatus}>
+              {activeNoise >= 75 ? 'Excessive Warning' : 'Normal Exposure'}
             </Text>
-          </View>
-          <View style={styles.recommendation}>
-            <Text style={styles.recommendationIcon}>✓</Text>
-            <Text style={styles.recommendationText}>
-              Keep windows closed between 12-6 PM
+          </Card>
+
+          {/* AQI */}
+          <Card style={styles.metricCard}>
+            <Text style={styles.metricIcon}>💨</Text>
+            <Text style={styles.metricLabel}>Air Quality</Text>
+            <Text style={[styles.metricValue, Typography.tabularNums]}>
+              {Math.round(activeAQI)}
             </Text>
-          </View>
-        </Card>
+            <Text style={styles.metricUnit}>AQI</Text>
+            <Text style={styles.metricStatus}>
+              {activeAQI > 100 ? 'Unhealthy sensitive' : activeAQI > 50 ? 'Moderate Readings' : 'Good Clean Air'}
+            </Text>
+          </Card>
+
+          {/* Pollen */}
+          <Card style={styles.metricCard}>
+            <Text style={styles.metricIcon}>🌸</Text>
+            <Text style={styles.metricLabel}>Pollen Count</Text>
+            <Text style={[styles.metricValue, Typography.tabularNums]}>
+              {Math.round(activePollen)}
+            </Text>
+            <Text style={styles.metricUnit}>PPM</Text>
+            <Text style={styles.metricStatus}>
+              {activePollen > 60 ? 'Severe Allergen' : 'Low Irritants'}
+            </Text>
+          </Card>
+
+          {/* Litter */}
+          <Card style={styles.metricCard}>
+            <Text style={styles.metricIcon}>🗑️</Text>
+            <Text style={styles.metricLabel}>Litter Index</Text>
+            <Text style={[styles.metricValue, Typography.tabularNums]}>
+              {Math.round(activeLitter)}
+            </Text>
+            <Text style={styles.metricUnit}>Reports</Text>
+            <Text style={styles.metricStatus}>
+              {activeLitter > 50 ? 'Sanitation Required' : 'Clean Streets'}
+            </Text>
+          </Card>
+        </Animated.View>
+
+        {/* Weather Conditions Card */}
+        {weatherData && (
+          <Card style={styles.weatherCard}>
+            <Text style={styles.sectionTitle}>🌤️ Current Weather Info</Text>
+            <View style={styles.currentWeather}>
+              <Text style={styles.tempLarge}>{Math.round(weatherData.current.temp)}°F</Text>
+              <Text style={styles.description}>{weatherData.current.description}</Text>
+              <View style={styles.weatherDetails}>
+                <View style={styles.detailItem}>
+                  <Text style={styles.detailIcon}>💧</Text>
+                  <Text style={styles.detailText}>{weatherData.current.humidity}%</Text>
+                  <Text style={styles.detailLabel}>Humidity</Text>
+                </View>
+                <View style={styles.detailItem}>
+                  <Text style={styles.detailIcon}>💨</Text>
+                  <Text style={styles.detailText}>
+                    {Math.round(weatherData.current.wind_speed)} mph {getWindDirection(weatherData.current.wind_deg)}
+                  </Text>
+                  <Text style={styles.detailLabel}>Wind</Text>
+                </View>
+                <View style={styles.detailItem}>
+                  <Text style={styles.detailIcon}>☀️</Text>
+                  <Text style={[styles.detailText, { color: getUVLevel(weatherData.current.uv).color }]}>
+                    {weatherData.current.uv.toFixed(1)}
+                  </Text>
+                  <Text style={styles.detailLabel}>UV {getUVLevel(weatherData.current.uv).level}</Text>
+                </View>
+              </View>
+            </View>
+          </Card>
+        )}
 
         {/* Info Card */}
         <View style={styles.infoCard}>
           <Text style={styles.infoTitle}>✅ Forecast Active</Text>
-          <Text style={styles.infoText}>• Mode: {forecast.mode}</Text>
-          <Text style={styles.infoText}>• Confidence: {forecast.confidence}</Text>
-          <Text style={styles.infoText}>• Updated: Just now</Text>
+          <Text style={styles.infoText}>• Model Confidence: {forecast.confidence}</Text>
+          <Text style={styles.infoText}>• Update Mode: {forecast.mode.toUpperCase()}</Text>
         </View>
 
         <View style={{ height: Spacing.unit(4) }} />
@@ -256,170 +382,201 @@ const styles = StyleSheet.create({
     marginTop: Spacing.unit(2),
     color: Colors.textSecondary,
   },
-  errorText: {
-    ...Typography.body,
-    color: Colors.danger,
-  },
   header: {
     backgroundColor: Colors.primary,
-    paddingTop: Spacing.unit(6),
-    paddingBottom: Spacing.unit(3),
+    paddingTop: Platform.OS === 'ios' ? 56 : 32,
+    paddingBottom: 16,
     paddingHorizontal: Spacing.screenPadding,
   },
   headerTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: Colors.surface,
-    marginBottom: Spacing.unit(0.5),
+    ...Typography.title,
+    fontSize: 24,
+    color: '#FFFFFF',
   },
   headerSubtitle: {
-    ...Typography.body,
+    ...Typography.caption,
     color: Colors.primaryLight,
+    marginTop: 2,
   },
   content: {
     flex: 1,
   },
-  peaksSection: {
-    paddingTop: Spacing.unit(3),
-    paddingHorizontal: Spacing.screenPadding,
+  toggleSection: {
+    padding: Spacing.screenPadding,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
   },
-  selectorSection: {
-    marginTop: Spacing.unit(3),
+  summaryCard: {
+    margin: Spacing.screenPadding,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: 16,
+  },
+  summaryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  summaryTitle: {
+    ...Typography.title,
+    fontSize: 18,
+  },
+  summarySubtitle: {
+    ...Typography.caption,
+    marginTop: 2,
+  },
+  riskPill: {
+    width: 48,
+    height: 28,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  riskPillText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+  scrubberSection: {
     paddingHorizontal: Spacing.screenPadding,
+    marginBottom: 8,
   },
   sectionTitle: {
-    ...Typography.title,
-    marginBottom: Spacing.unit(2),
+    ...Typography.subtitle,
+    fontSize: 15,
+    color: Colors.textSecondary,
+    marginBottom: 10,
   },
-  metricSelector: {
+  scrubberScroll: {
+    paddingVertical: 6,
+    gap: 10,
+  },
+  chipPressable: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  hourChip: {
+    height: 36,
+    paddingHorizontal: 12,
+    borderRadius: 18,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  hourChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  metricsGrid: {
     flexDirection: 'row',
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    padding: Spacing.unit(0.5),
+    flexWrap: 'wrap',
+    paddingHorizontal: Spacing.screenPadding - 6,
+    marginBottom: 8,
+  },
+  metricCard: {
+    width: (width - Spacing.screenPadding * 2 - 12) / 2,
+    margin: 6,
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: '#FFFFFF',
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  metricButton: {
-    flex: 1,
-    paddingVertical: Spacing.unit(1.5),
-    paddingHorizontal: Spacing.unit(1),
-    borderRadius: 10,
-    alignItems: 'center',
+  metricIcon: {
+    fontSize: 24,
+    marginBottom: 4,
   },
-  metricButtonActive: {
-    backgroundColor: Colors.primary,
-  },
-  metricButtonText: {
-    ...Typography.body,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-    fontSize: 13,
-  },
-  metricButtonTextActive: {
-    color: Colors.surface,
-  },
-  chartCard: {
-    margin: Spacing.screenPadding,
-    marginTop: Spacing.unit(3),
-  },
-  chartHeader: {
-    marginBottom: Spacing.unit(2),
-  },
-  chartTitle: {
-    ...Typography.subtitle,
-    fontWeight: '600',
-    marginBottom: Spacing.unit(0.5),
-  },
-  chartSubtitle: {
+  metricLabel: {
     ...Typography.caption,
     color: Colors.textSecondary,
+    marginBottom: 2,
   },
-  chartScroll: {
-    marginHorizontal: -Spacing.unit(1),
-  },
-  chartContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: Spacing.unit(1),
-  },
-  barContainer: {
-    alignItems: 'center',
-    marginRight: Spacing.unit(2),
-    width: 45,
-  },
-  barWrapper: {
-    height: 120,
-    width: 32,
-    justifyContent: 'flex-end',
-    marginBottom: Spacing.unit(1),
-  },
-  bar: {
-    width: '100%',
-    borderTopLeftRadius: 6,
-    borderTopRightRadius: 6,
-    minHeight: 4,
-  },
-  barLabel: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
-    fontSize: 10,
-    marginBottom: Spacing.unit(0.5),
-  },
-  barLabelCurrent: {
+  metricValue: {
+    fontSize: 20,
     fontWeight: '700',
     color: Colors.primary,
   },
-  barValue: {
+  metricUnit: {
     ...Typography.caption,
-    fontWeight: '600',
+    color: Colors.textSecondary,
+    marginBottom: 4,
+  },
+  metricStatus: {
     fontSize: 11,
+    fontWeight: '600',
+    color: Colors.textPrimary,
+    textAlign: 'center',
   },
-  barValueCurrent: {
+  weatherCard: {
+    margin: Spacing.screenPadding,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  currentWeather: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  tempLarge: {
+    fontSize: 40,
     fontWeight: '700',
     color: Colors.primary,
-    fontSize: 13,
   },
-  recommendationsCard: {
-    margin: Spacing.screenPadding,
-    backgroundColor: Colors.primaryLight,
-    borderColor: Colors.primary,
-  },
-  recommendationsTitle: {
-    ...Typography.subtitle,
-    fontWeight: '600',
-    marginBottom: Spacing.unit(2),
-    color: Colors.primary,
-  },
-  recommendation: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: Spacing.unit(1.5),
-  },
-  recommendationIcon: {
-    fontSize: 16,
-    marginRight: Spacing.unit(1),
-    marginTop: 2,
-  },
-  recommendationText: {
-    ...Typography.body,
-    flex: 1,
+  description: {
+    fontSize: 15,
     color: Colors.textPrimary,
+    textTransform: 'capitalize',
+    marginBottom: 16,
+  },
+  weatherDetails: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+  },
+  detailItem: {
+    alignItems: 'center',
+  },
+  detailIcon: {
+    fontSize: 20,
+    marginBottom: 2,
+  },
+  detailText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.textPrimary,
+  },
+  detailLabel: {
+    fontSize: 11,
+    color: Colors.textSecondary,
   },
   infoCard: {
     margin: Spacing.screenPadding,
-    padding: Spacing.unit(2),
-    backgroundColor: 'rgba(15, 110, 86, 0.1)',
-    borderRadius: 12,
+    padding: 12,
+    backgroundColor: 'rgba(15, 110, 86, 0.08)',
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: Colors.primary,
   },
   infoTitle: {
-    ...Typography.subtitle,
-    marginBottom: Spacing.unit(1),
+    fontSize: 14,
+    fontWeight: '700',
     color: Colors.primary,
+    marginBottom: 4,
   },
   infoText: {
-    ...Typography.caption,
-    marginBottom: Spacing.unit(0.5),
+    fontSize: 11,
     color: Colors.textPrimary,
+    marginBottom: 2,
   },
 });

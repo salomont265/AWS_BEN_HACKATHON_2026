@@ -384,7 +384,7 @@ export default function ReportScreenNew({ navigation }: any) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.primaryLight,
   },
   content: {
     padding: Spacing.screenPadding,
@@ -417,7 +417,7 @@ const styles = StyleSheet.create({
     width: '31%',
     margin: Spacing.unit(0.5),
     padding: Spacing.unit(1.5),
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.primaryLight,
     borderRadius: 12,
     borderWidth: 2,
     borderColor: Colors.border,
@@ -457,7 +457,7 @@ const styles = StyleSheet.create({
   },
   textArea: {
     ...Typography.body,
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.primaryLight,
     borderRadius: 12,
     padding: Spacing.unit(2),
     borderWidth: 1,

@@ -1,6 +1,6 @@
 /**
- * Home/Dashboard Screen - Environmental Intelligence Overview
- * Shows current conditions, forecasts, and actionable insights
+ * Home/Dashboard Screen - Main overview
+ * Shows current environmental conditions and key alerts
  */
 
 import React, { useState, useEffect } from 'react';
@@ -13,11 +13,14 @@ import {
   TouchableOpacity,
   Dimensions,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
 import { Colors, Typography, Spacing } from '@/theme/tokens';
 import { fetchAllForecasts, ForecastData } from '../../services/forecastService';
 import MetricCard from '../../components/MetricCard';
 import Card from '../../components/Card';
+import Button from '../../components/Button';
+import FloatingLeaves from '../../components/FloatingLeaves';
 
 const { width } = Dimensions.get('window');
 
@@ -39,6 +42,7 @@ export default function HomeScreen() {
       setForecast(data);
     } catch (error) {
       console.error('Failed to load forecast:', error);
+      alert('Failed to load forecast: ' + (error as Error).message);
     } finally {
       setLoading(false);
     }
@@ -75,7 +79,7 @@ export default function HomeScreen() {
     const risk = getOverallRisk();
     switch (risk) {
       case 'low':
-        return { title: 'Excellent', message: 'Great conditions today', color: Colors.safe };
+        return { title: 'Excellent', message: 'Great conditions today!', color: Colors.safe };
       case 'moderate':
         return { title: 'Moderate', message: 'Be aware of sensitivities', color: Colors.warning };
       case 'high':
@@ -91,27 +95,6 @@ export default function HomeScreen() {
     return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
   };
 
-  const getPeakPredictions = () => {
-    if (!forecast) return null;
-
-    const noisePeak = Math.max(...forecast.noise.map(h => h.value));
-    const aqiPeak = Math.max(...forecast.aqi.map(h => h.value));
-    const pollenPeak = Math.max(...forecast.pollen.map(h => h.value));
-    const litterPeak = Math.max(...forecast.litter.map(h => h.value));
-
-    const noisePeakTime = forecast.noise.find(h => h.value === noisePeak)?.hour || '';
-    const aqiPeakTime = forecast.aqi.find(h => h.value === aqiPeak)?.hour || '';
-    const pollenPeakTime = forecast.pollen.find(h => h.value === pollenPeak)?.hour || '';
-    const litterPeakTime = forecast.litter.find(h => h.value === litterPeak)?.hour || '';
-
-    return {
-      noise: { value: noisePeak, time: noisePeakTime },
-      aqi: { value: aqiPeak, time: aqiPeakTime },
-      pollen: { value: pollenPeak, time: pollenPeakTime },
-      litter: { value: litterPeak, time: litterPeakTime },
-    };
-  };
-
   if (loading) {
     return (
       <View style={styles.centerContainer}>
@@ -123,7 +106,6 @@ export default function HomeScreen() {
 
   const conditions = getCurrentConditions();
   const riskInfo = getRiskMessage();
-  const peaks = getPeakPredictions();
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
@@ -149,7 +131,7 @@ export default function HomeScreen() {
       {/* Current Conditions */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Current Conditions</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.metricsRow}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           {conditions && (
             <>
               <MetricCard
@@ -188,41 +170,6 @@ export default function HomeScreen() {
         </ScrollView>
       </View>
 
-      {/* 24-Hour Peak Predictions */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>24-Hour Peak Forecasts</Text>
-        <View style={styles.peaksGrid}>
-          {peaks && (
-            <>
-              <Card style={styles.peakCard}>
-                <Text style={styles.peakIcon}>🔊</Text>
-                <Text style={styles.peakLabel}>Noise Peak</Text>
-                <Text style={styles.peakValue}>{Math.round(peaks.noise.value)} dB</Text>
-                <Text style={styles.peakTime}>at {peaks.noise.time}</Text>
-              </Card>
-              <Card style={styles.peakCard}>
-                <Text style={styles.peakIcon}>💨</Text>
-                <Text style={styles.peakLabel}>AQI Peak</Text>
-                <Text style={styles.peakValue}>{Math.round(peaks.aqi.value)}</Text>
-                <Text style={styles.peakTime}>at {peaks.aqi.time}</Text>
-              </Card>
-              <Card style={styles.peakCard}>
-                <Text style={styles.peakIcon}>🌸</Text>
-                <Text style={styles.peakLabel}>Pollen Peak</Text>
-                <Text style={styles.peakValue}>{Math.round(peaks.pollen.value)}</Text>
-                <Text style={styles.peakTime}>at {peaks.pollen.time}</Text>
-              </Card>
-              <Card style={styles.peakCard}>
-                <Text style={styles.peakIcon}>🗑️</Text>
-                <Text style={styles.peakLabel}>Litter Peak</Text>
-                <Text style={styles.peakValue}>{Math.round(peaks.litter.value)}</Text>
-                <Text style={styles.peakTime}>at {peaks.litter.time}</Text>
-              </Card>
-            </>
-          )}
-        </View>
-      </View>
-
       {/* Quick Actions */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Quick Actions</Text>
@@ -245,10 +192,10 @@ export default function HomeScreen() {
             <Text style={styles.actionSubtitle}>Risk zones</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.actionCard} onPress={() => navigation.navigate('CommunityTab' as never)}>
+          <TouchableOpacity style={styles.actionCard} onPress={() => navigation.navigate('ProfileTab' as never)}>
             <Text style={styles.actionIcon}>👥</Text>
-            <Text style={styles.actionTitle}>Community</Text>
-            <Text style={styles.actionSubtitle}>Reports & updates</Text>
+            <Text style={styles.actionTitle}>Profile</Text>
+            <Text style={styles.actionSubtitle}>Settings & info</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -325,11 +272,6 @@ const styles = StyleSheet.create({
     paddingTop: Spacing.unit(6),
     paddingBottom: Spacing.unit(4),
     paddingHorizontal: Spacing.screenPadding,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 5,
   },
   heroHeader: {
     flexDirection: 'row',
@@ -396,38 +338,6 @@ const styles = StyleSheet.create({
     color: Colors.primary,
     fontWeight: '600',
   },
-  metricsRow: {
-    gap: Spacing.unit(1.5),
-  },
-  peaksGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.unit(1.5),
-  },
-  peakCard: {
-    width: (width - Spacing.screenPadding * 2 - Spacing.unit(1.5)) / 2,
-    alignItems: 'center',
-    padding: Spacing.unit(2),
-  },
-  peakIcon: {
-    fontSize: 32,
-    marginBottom: Spacing.unit(1),
-  },
-  peakLabel: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
-    marginBottom: Spacing.unit(0.5),
-  },
-  peakValue: {
-    ...Typography.title,
-    fontWeight: '700',
-    marginBottom: Spacing.unit(0.25),
-    fontVariant: ['tabular-nums'],
-  },
-  peakTime: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
-  },
   actionsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -436,17 +346,12 @@ const styles = StyleSheet.create({
   actionCard: {
     width: (width - Spacing.screenPadding * 2 - Spacing.unit(2)) / 2,
     backgroundColor: Colors.surface,
-    borderRadius: 12,
-    padding: Spacing.unit(2.5),
+    borderRadius: 16,
+    padding: Spacing.unit(2),
     margin: Spacing.unit(1),
-    borderWidth: 2,
-    borderColor: Colors.primary,
+    borderWidth: 1,
+    borderColor: Colors.border,
     alignItems: 'center',
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
   },
   actionIcon: {
     fontSize: 40,

@@ -1,6 +1,5 @@
 /**
- * Map Screen - Phase 2 Implementation
- * Per FRONTEND_IMPLEMENTATION_PLAN.md - Map Screen section
+ * Map Screen - EnviroGuard v2 Beautiful Redesign
  */
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -12,24 +11,53 @@ import {
   ActivityIndicator,
   ScrollView,
   Dimensions,
+  Platform,
 } from 'react-native';
-import { Platform } from 'react-native';
-// Only import MapView on mobile platforms
-let MapView: any, Marker: any, PROVIDER_GOOGLE: any;
+import { LinearGradient } from 'expo-linear-gradient';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+  withDelay,
+  interpolateColor,
+} from 'react-native-reanimated';
+import FloatingLeaves from '../../components/FloatingLeaves';
+
+// Reusable Theme Components
+import {
+  ModeToggle,
+  SeverityBadge,
+  CategoryBadge,
+  CommunityDataBadge,
+} from '../../components/ThemeComponents';
+import { getZoneSummary } from '../../services/claudeService';
+
+// Dynamic import for mobile maps
+let MapView: any, Marker: any, PROVIDER_GOOGLE: any, Circle: any;
+type Region = {
+  latitude: number;
+  longitude: number;
+  latitudeDelta: number;
+  longitudeDelta: number;
+};
+
 if (Platform.OS !== 'web') {
   const maps = require('react-native-maps');
   MapView = maps.default;
   Marker = maps.Marker;
+  Circle = maps.Circle;
   PROVIDER_GOOGLE = maps.PROVIDER_GOOGLE;
 }
 import * as Location from 'expo-location';
-import { Colors, Typography, Spacing } from '@/theme/tokens';
+import { Colors, Typography, Spacing, ComponentSizes } from '@/theme/tokens';
 import { apiGet } from '../../utils/api';
 import Card from '../../components/Card';
 import Button from '../../components/Button';
 import HeatMapWeb from '../../components/HeatMapWeb';
 
 const { width, height } = Dimensions.get('window');
+const SHEET_HEIGHT = height * 0.65;
 
 interface MapData {
   neighborhood_id: string;
@@ -52,6 +80,55 @@ interface MapData {
 
 type LayerType = 'combined' | 'air' | 'noise' | 'pollen' | 'litter' | 'reports';
 
+// Animated Zone Circle for Map
+function AnimatedZoneCircle({
+  score,
+  index,
+  mode,
+}: {
+  score: number;
+  index: number;
+  mode: 'api' | 'community';
+}) {
+  const opacity = useSharedValue(0);
+  const scale = useSharedValue(0.8);
+  const modeVal = useSharedValue(mode === 'api' ? 0 : 1);
+
+  useEffect(() => {
+    // Staggered load on mount
+    opacity.value = withDelay(index * 80, withTiming(0.4, { duration: 400 }));
+    scale.value = withDelay(index * 80, withSpring(1.0, { damping: 12, stiffness: 100 }));
+  }, []);
+
+  useEffect(() => {
+    modeVal.value = withTiming(mode === 'api' ? 0 : 1, { duration: 300 });
+  }, [mode]);
+
+  const animatedStyle = useAnimatedStyle(() => {
+    const backgroundColor = interpolateColor(
+      modeVal.value,
+      [0, 1],
+      ['rgba(15, 110, 86, 0.4)', 'rgba(83, 74, 183, 0.4)']
+    );
+    const borderColor = interpolateColor(
+      modeVal.value,
+      [0, 1],
+      ['#0F6E56', '#534AB7']
+    );
+
+    return {
+      opacity: opacity.value,
+      transform: [{ scale: scale.value }],
+      backgroundColor,
+      borderColor,
+    };
+  });
+
+  return (
+    <Animated.View style={[styles.zoneCircle, animatedStyle]} />
+  );
+}
+
 export default function MapScreenNew() {
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [mapData, setMapData] = useState<MapData | null>(null);
@@ -62,12 +139,22 @@ export default function MapScreenNew() {
   const [showBottomSheet, setShowBottomSheet] = useState(false);
   const mapRef = useRef<MapView>(null);
 
+  // Claude Summary State
+  const [claudeSummary, setClaudeSummary] = useState('');
+  const [loadingSummary, setLoadingSummary] = useState(false);
+
+  // Bottom Sheet Reanimated Values
+  const sheetY = useSharedValue(height);
+  const summaryOpacity = useSharedValue(0);
+
   const [region, setRegion] = useState<Region>({
     latitude: 40.7128,
     longitude: -74.006,
     latitudeDelta: 0.05,
     longitudeDelta: 0.05,
   });
+
+  const [webMapCenter, setWebMapCenter] = useState({ lat: 40.7128, lng: -74.006 });
 
   useEffect(() => {
     requestLocationPermission();
@@ -79,12 +166,53 @@ export default function MapScreenNew() {
     }
   }, [location, mode]);
 
+  // Handle bottom sheet opening / closing animations
+  useEffect(() => {
+    if (showBottomSheet && mapData) {
+      sheetY.value = withSpring(height - SHEET_HEIGHT, {
+        damping: 18,
+        stiffness: 200,
+      });
+      // Stagger Claude summary text fade-in
+      summaryOpacity.value = 0;
+      summaryOpacity.value = withDelay(200, withTiming(1, { duration: 300 }));
+      loadSummary(mapData);
+    } else {
+      sheetY.value = withSpring(height, { damping: 18, stiffness: 200 });
+      summaryOpacity.value = withTiming(0, { duration: 150 });
+    }
+  }, [showBottomSheet, mapData]);
+
+  const loadSummary = async (zone: MapData) => {
+    setLoadingSummary(true);
+    try {
+      const summary = await getZoneSummary({
+        name: zone.name,
+        noise_index: zone.layers.noise.index,
+        aqi: zone.layers.air.aqi,
+        health_category: zone.layers.air.health_category,
+        pollen_index: zone.layers.pollen.total_index,
+        litter_count: zone.layers.litter.complaint_count_24h,
+        mode,
+      });
+      setClaudeSummary(summary);
+    } catch (error) {
+      console.log('Claude service error, generating styled fallback:', error);
+      const riskLevel = zone.composite_score >= 60 ? 'high' : zone.composite_score >= 30 ? 'moderate' : 'low';
+      setClaudeSummary(
+        `In ${zone.name}, the environmental risk is currently ${riskLevel} (score: ${Math.round(zone.composite_score)}/100). ` +
+        `Air Quality index is ${zone.layers.air.aqi} (${zone.layers.air.health_category.toLowerCase()}), and noise is running at ${zone.layers.noise.index}/100. ` +
+        `Residents should plan activities accordingly.`
+      );
+    } finally {
+      setLoadingSummary(false);
+    }
+  };
+
   const requestLocationPermission = async () => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        console.log('Location permission denied');
-        // Load default NYC location
         loadMapData(40.7128, -74.006);
         return;
       }
@@ -107,7 +235,6 @@ export default function MapScreenNew() {
     try {
       setLoading(true);
 
-      // Fetch data for multiple NYC neighborhoods in parallel
       const neighborhoods = [
         { name: 'Downtown', lat: 40.7128, lng: -74.006 },
         { name: 'Williamsburg', lat: 40.7081, lng: -73.9571 },
@@ -118,17 +245,18 @@ export default function MapScreenNew() {
       ];
 
       const results = await Promise.all(
-        neighborhoods.map((loc) =>
-          apiGet<MapData>('/map-data', {
+        neighborhoods.map(async (loc) => {
+          const data = await apiGet<MapData>('/map-data', {
             lat: loc.lat.toString(),
             lng: loc.lng.toString(),
             mode,
-          })
-        )
+          });
+          return { ...data, name: loc.name };
+        })
       );
 
       setMapZones(results);
-      if (results.length > 0) {
+      if (results.length > 0 && !mapData) {
         setMapData(results[0]);
       }
     } catch (error) {
@@ -139,24 +267,9 @@ export default function MapScreenNew() {
   };
 
   const getScoreColor = (score: number) => {
-    if (score <= 30) return '#22c55e'; // green
-    if (score <= 60) return '#eab308'; // yellow
-    return '#ef4444'; // red
-  };
-
-  const getSeverityColor = (severity: string) => {
-    switch (severity.toLowerCase()) {
-      case 'low':
-        return Colors.safe;
-      case 'medium':
-      case 'moderate':
-        return Colors.warning;
-      case 'high':
-      case 'very_high':
-        return Colors.danger;
-      default:
-        return Colors.textSecondary;
-    }
+    if (score <= 30) return Colors.safe;
+    if (score <= 60) return Colors.warning;
+    return Colors.danger;
   };
 
   const centerOnLocation = () => {
@@ -170,20 +283,15 @@ export default function MapScreenNew() {
     }
   };
 
-  const toggleMode = () => {
-    setMode(mode === 'api' ? 'community' : 'api');
-  };
-
   const extractHeatPoints = (zones: MapData[], layer: LayerType) => {
     return zones.map((zone) => {
       let intensity = 0;
-
       switch (layer) {
         case 'combined':
           intensity = zone.composite_score;
           break;
         case 'air':
-          intensity = zone.layers.air.aqi / 5; // Scale 0-500 to 0-100
+          intensity = zone.layers.air.aqi / 5;
           break;
         case 'noise':
           intensity = zone.layers.noise.index;
@@ -192,76 +300,58 @@ export default function MapScreenNew() {
           intensity = zone.layers.pollen.total_index;
           break;
         case 'litter':
-          intensity = zone.layers.litter.complaint_count_24h * 2; // Scale complaints
+          intensity = zone.layers.litter.complaint_count_24h * 2;
           break;
         case 'reports':
-          intensity = zone.layers.general.report_count_24h * 3; // Scale reports
+          intensity = zone.layers.general.report_count_24h * 3;
           break;
       }
-
       return {
         lat: zone.lat,
         lng: zone.lng,
-        intensity: Math.min(intensity, 100), // Cap at 100
+        intensity: Math.min(intensity, 100),
       };
     });
   };
 
-  // Mock neighborhood data for web display
-  const mockNeighborhoods = [
-    { name: 'Downtown', severity: 'low', score: 32, lat: 40.7589, lng: -73.9851 },
-    { name: 'Williamsburg', severity: 'moderate', score: 58, lat: 40.7081, lng: -73.9571 },
-    { name: 'Brooklyn Heights', severity: 'low', score: 28, lat: 40.6962, lng: -73.9954 },
-    { name: 'East Village', severity: 'high', score: 72, lat: 40.7265, lng: -73.9815 },
-  ];
+  const sheetAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ translateY: sheetY.value }],
+    };
+  });
 
-  const [selectedNeighborhood, setSelectedNeighborhood] = React.useState(mockNeighborhoods[0]);
-
-  // Generate Google Maps static image URL with markers
-  const getMapImageUrl = () => {
-    const center = `${selectedNeighborhood.lat},${selectedNeighborhood.lng}`;
-    const markers = mockNeighborhoods.map(n => {
-      const color = n.severity === 'high' ? 'red' : n.severity === 'moderate' ? 'orange' : 'green';
-      return `markers=color:${color}|label:${n.name[0]}|${n.lat},${n.lng}`;
-    }).join('&');
-
-    return `https://maps.googleapis.com/maps/api/staticmap?center=${center}&zoom=12&size=800x600&maptype=roadmap&${markers}&key=AIzaSyDummy`;
-  };
+  const summaryAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      opacity: summaryOpacity.value,
+    };
+  });
 
   return (
     <View style={styles.container}>
+      <FloatingLeaves />
+
       {/* Map */}
       {Platform.OS === 'web' ? (
-        <View style={styles.map}>
-          {/* Heat Map */}
-          {mapZones.length > 0 && (
+        <View style={styles.webMapContainer}>
+          {!loading && mapZones.length > 0 ? (
             <HeatMapWeb
-              center={{ lat: 40.7128, lng: -74.006 }}
-              zoom={12}
+              center={webMapCenter}
+              zoom={13}
               heatPoints={extractHeatPoints(mapZones, selectedLayer)}
               maxIntensity={100}
             />
+          ) : null}
+          {loading && (
+            <View style={styles.loadingOverlay}>
+              <ActivityIndicator size="large" color={Colors.primary} />
+              <Text style={styles.loadingText}>Loading map data...</Text>
+            </View>
           )}
 
-          {/* Controls overlay */}
+          {/* Web controls */}
           <View style={styles.webMapControls}>
             <View style={styles.webModeToggle}>
-              <TouchableOpacity
-                style={[styles.webModeButton, mode === 'api' && styles.webModeButtonActive]}
-                onPress={() => setMode('api')}
-              >
-                <Text style={[styles.webModeText, mode === 'api' && styles.webModeTextActive]}>
-                  📡 API Data
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.webModeButton, mode === 'community' && styles.webModeButtonActive]}
-                onPress={() => setMode('community')}
-              >
-                <Text style={[styles.webModeText, mode === 'community' && styles.webModeTextActive]}>
-                  👥 Community
-                </Text>
-              </TouchableOpacity>
+              <ModeToggle activeOption={mode} onChange={setMode} />
             </View>
 
             {/* Layer Filter Tabs */}
@@ -288,51 +378,37 @@ export default function MapScreenNew() {
             </ScrollView>
           </View>
 
-          {/* Legend */}
-          <View style={styles.legend}>
-            <Text style={styles.legendTitle}>Risk Level</Text>
-            <View style={styles.legendRow}>
-              <View style={[styles.legendDot, { backgroundColor: '#00ff00' }]} />
-              <Text style={styles.legendText}>Low (0-25)</Text>
-            </View>
-            <View style={styles.legendRow}>
-              <View style={[styles.legendDot, { backgroundColor: '#ffff00' }]} />
-              <Text style={styles.legendText}>Moderate (26-50)</Text>
-            </View>
-            <View style={styles.legendRow}>
-              <View style={[styles.legendDot, { backgroundColor: '#ffa500' }]} />
-              <Text style={styles.legendText}>High (51-75)</Text>
-            </View>
-            <View style={styles.legendRow}>
-              <View style={[styles.legendDot, { backgroundColor: '#ff0000' }]} />
-              <Text style={styles.legendText}>Very High (76-100)</Text>
-            </View>
-          </View>
-
-          {/* Neighborhood selector */}
+          {/* Web Neighborhood selector */}
           <ScrollView
             horizontal
             style={styles.webNeighborhoodScroll}
             showsHorizontalScrollIndicator={false}
           >
-            {mockNeighborhoods.map((hood, idx) => (
-              <TouchableOpacity
-                key={idx}
-                style={[
-                  styles.webNeighborhoodChip,
-                  selectedNeighborhood.name === hood.name && styles.webNeighborhoodChipActive
-                ]}
-                onPress={() => setSelectedNeighborhood(hood)}
-              >
-                <Text style={styles.webNeighborhoodChipName}>{hood.name}</Text>
-                <View style={[
-                  styles.webNeighborhoodChipBadge,
-                  { backgroundColor: getSeverityColor(hood.severity) }
-                ]}>
-                  <Text style={styles.webNeighborhoodChipScore}>{hood.score}</Text>
-                </View>
-              </TouchableOpacity>
-            ))}
+            {mapZones.map((zone) => {
+              const score = Math.round(zone.composite_score);
+              return (
+                <TouchableOpacity
+                  key={zone.neighborhood_id}
+                  style={[
+                    styles.webNeighborhoodChip,
+                    mapData?.neighborhood_id === zone.neighborhood_id && styles.webNeighborhoodChipActive
+                  ]}
+                  onPress={() => {
+                    setMapData(zone);
+                    setWebMapCenter({ lat: zone.lat, lng: zone.lng });
+                    setShowBottomSheet(true);
+                  }}
+                >
+                  <Text style={styles.webNeighborhoodChipName}>{zone.name}</Text>
+                  <View style={[
+                    styles.webNeighborhoodChipBadge,
+                    { backgroundColor: getScoreColor(score) }
+                  ]}>
+                    <Text style={styles.webNeighborhoodChipScore}>{score}</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
           </ScrollView>
         </View>
       ) : (
@@ -345,57 +421,72 @@ export default function MapScreenNew() {
           showsUserLocation
           showsMyLocationButton={false}
           onPress={() => {
-            if (mapData) {
-              setShowBottomSheet(!showBottomSheet);
-            }
+            setShowBottomSheet(false);
           }}
         >
-          {mapData && (
+          {/* Custom Markers representing heatmap zones */}
+          {mapZones.map((zone, idx) => (
             <Marker
+              key={zone.neighborhood_id}
               coordinate={{
-                latitude: mapData.lat,
-                longitude: mapData.lng,
+                latitude: zone.lat,
+                longitude: zone.lng,
               }}
-              title={mapData.name}
-              description={`Score: ${mapData.composite_score}`}
-              pinColor={getScoreColor(mapData.composite_score)}
-            />
-          )}
+              anchor={{ x: 0.5, y: 0.5 }}
+              onPress={(e: any) => {
+                e.stopPropagation();
+                setMapData(zone);
+                setShowBottomSheet(true);
+              }}
+            >
+              <AnimatedZoneCircle
+                score={zone.composite_score}
+                index={idx}
+                mode={mode}
+              />
+            </Marker>
+          ))}
         </MapView>
       )}
 
-      {/* Mode Toggle Button */}
-      <TouchableOpacity style={styles.modeButton} onPress={toggleMode}>
-        <Text style={styles.modeButtonText}>
-          {mode === 'api' ? '📊 API Mode' : '👥 Community'}
-        </Text>
-      </TouchableOpacity>
+      {/* Floating Controls (Mobile Only) */}
+      {Platform.OS !== 'web' && (
+        <>
+          {/* Mode Toggle */}
+          <View style={styles.floatingModeToggle}>
+            <ModeToggle activeOption={mode} onChange={setMode} />
+          </View>
 
-      {/* My Location Button */}
-      <TouchableOpacity style={styles.locationButton} onPress={centerOnLocation}>
-        <Text style={styles.locationIcon}>📍</Text>
-      </TouchableOpacity>
+          {/* Location button */}
+          <TouchableOpacity style={styles.locationButton} onPress={centerOnLocation}>
+            <Text style={styles.locationIcon}>📍</Text>
+          </TouchableOpacity>
+        </>
+      )}
 
-      {/* Loading Indicator */}
-      {loading && (
+      {/* Loading overlay */}
+      {loading && Platform.OS !== 'web' && (
         <View style={styles.loadingOverlay}>
           <ActivityIndicator size="large" color={Colors.primary} />
         </View>
       )}
 
       {/* Bottom Sheet */}
-      {showBottomSheet && mapData && (
-        <View style={styles.bottomSheet}>
+      {mapData && (
+        <Animated.View style={[styles.bottomSheet, sheetAnimatedStyle]}>
           <View style={styles.sheetHandle} />
 
-          <ScrollView showsVerticalScrollIndicator={false}>
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.sheetContent}>
             {/* Header */}
             <View style={styles.sheetHeader}>
               <View>
                 <Text style={styles.sheetTitle}>{mapData.name}</Text>
-                <Text style={styles.sheetSubtitle}>
-                  {mode === 'api' ? 'Real-time Data' : 'Community Reports'}
-                </Text>
+                <View style={styles.badgeRow}>
+                  {mode === 'community' && <CommunityDataBadge />}
+                  <Text style={styles.sheetSubtitle}>
+                    {mode === 'api' ? 'Real-time Readings' : 'Community Activity'}
+                  </Text>
+                </View>
               </View>
               <View
                 style={[
@@ -403,101 +494,74 @@ export default function MapScreenNew() {
                   { backgroundColor: getScoreColor(mapData.composite_score) },
                 ]}
               >
-                <Text style={styles.scoreText}>{mapData.composite_score}</Text>
+                <Text style={[styles.scoreText, Typography.tabularNums]}>
+                  {Math.round(mapData.composite_score)}
+                </Text>
               </View>
             </View>
 
-            {/* Severity Badge */}
-            <View
-              style={[
-                styles.severityBadge,
-                { backgroundColor: getSeverityColor(mapData.severity) },
-              ]}
-            >
-              <Text style={styles.severityText}>
-                {mapData.severity.toUpperCase()}
-              </Text>
-            </View>
+            {/* Claude Briefing Section */}
+            <Animated.View style={[styles.claudeBriefingCard, summaryAnimatedStyle]}>
+              <View style={styles.briefingHeader}>
+                <Text style={styles.briefingIcon}>✨</Text>
+                <Text style={styles.briefingTitle}>Claude Environmental Briefing</Text>
+              </View>
+              {loadingSummary ? (
+                <View style={styles.briefingLoader}>
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                  <Text style={styles.briefingLoadingText}>Consulting advisor...</Text>
+                </View>
+              ) : (
+                <Text style={styles.briefingText}>{claudeSummary}</Text>
+              )}
+            </Animated.View>
 
             {/* Metrics Grid */}
             <View style={styles.metricsGrid}>
-              {/* Air Quality */}
               <Card style={styles.metricCard}>
                 <Text style={styles.metricIcon}>💨</Text>
                 <Text style={styles.metricLabel}>Air Quality</Text>
-                <Text style={styles.metricValue}>{mapData.layers.air.aqi}</Text>
+                <Text style={[styles.metricValue, Typography.tabularNums]}>{mapData.layers.air.aqi}</Text>
                 <Text style={styles.metricUnit}>AQI</Text>
-                <Text style={styles.metricStatus}>
-                  {mapData.layers.air.health_category}
-                </Text>
+                <Text style={styles.metricStatus}>{mapData.layers.air.health_category}</Text>
               </Card>
 
-              {/* Noise */}
               <Card style={styles.metricCard}>
                 <Text style={styles.metricIcon}>🔊</Text>
-                <Text style={styles.metricLabel}>Noise</Text>
-                <Text style={styles.metricValue}>
-                  {mapData.layers.noise.index}
-                </Text>
+                <Text style={styles.metricLabel}>Noise Level</Text>
+                <Text style={[styles.metricValue, Typography.tabularNums]}>{mapData.layers.noise.index}</Text>
                 <Text style={styles.metricUnit}>Index</Text>
-                <Text style={styles.metricStatus}>
-                  {mapData.layers.noise.complaint_count_24h} reports
-                </Text>
+                <Text style={styles.metricStatus}>{mapData.layers.noise.complaint_count_24h} reports</Text>
               </Card>
 
-              {/* Pollen */}
               <Card style={styles.metricCard}>
                 <Text style={styles.metricIcon}>🌸</Text>
                 <Text style={styles.metricLabel}>Pollen</Text>
-                <Text style={styles.metricValue}>
-                  {mapData.layers.pollen.total_index}
-                </Text>
+                <Text style={[styles.metricValue, Typography.tabularNums]}>{mapData.layers.pollen.total_index}</Text>
                 <Text style={styles.metricUnit}>Index</Text>
-                <Text style={styles.metricStatus}>
-                  Tree: {mapData.layers.pollen.tree}
-                </Text>
+                <Text style={styles.metricStatus}>Tree: {mapData.layers.pollen.tree}</Text>
               </Card>
 
-              {/* Litter */}
               <Card style={styles.metricCard}>
                 <Text style={styles.metricIcon}>🗑️</Text>
-                <Text style={styles.metricLabel}>Litter</Text>
-                <Text style={styles.metricValue}>
-                  {mapData.layers.litter.complaint_count_24h}
-                </Text>
+                <Text style={styles.metricLabel}>Litter Index</Text>
+                <Text style={[styles.metricValue, Typography.tabularNums]}>{mapData.layers.litter.complaint_count_24h}</Text>
                 <Text style={styles.metricUnit}>Reports</Text>
-                <Text style={styles.metricStatus}>
-                  Avg: {mapData.layers.litter.avg_severity}/5
-                </Text>
+                <Text style={styles.metricStatus}>Avg: {mapData.layers.litter.avg_severity}/5</Text>
               </Card>
             </View>
 
             {/* Action Buttons */}
             <View style={styles.actions}>
-              <Button
-                title="View Posts"
-                icon="👥"
-                variant="outline"
-                onPress={() => console.log('Navigate to community')}
-              />
-              <Button
-                title="Report Issue"
-                icon="📝"
-                onPress={() => console.log('Navigate to report')}
-              />
-            </View>
-
-            {/* Meta Info */}
-            <View style={styles.metaInfo}>
-              <Text style={styles.metaText}>
-                Confidence: {mapData.confidence}
-              </Text>
-              <Text style={styles.metaText}>
-                Updated: {new Date(mapData.last_updated).toLocaleTimeString()}
-              </Text>
+              <TouchableOpacity
+                style={styles.closeBtn}
+                onPress={() => setShowBottomSheet(false)}
+              >
+                <Text style={styles.closeBtnText}>Close</Text>
+              </TouchableOpacity>
             </View>
           </ScrollView>
-        </View>
+        </Animated.View>
       )}
     </View>
   );
@@ -506,47 +570,50 @@ export default function MapScreenNew() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: Colors.background,
   },
   map: {
     width: '100%',
     height: '100%',
   },
-  modeButton: {
-    position: 'absolute',
-    top: 60,
-    right: 16,
-    backgroundColor: Colors.surface,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 5,
+  zoneCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 2,
   },
-  modeButtonText: {
-    ...Typography.body,
-    fontWeight: '600',
+  floatingModeToggle: {
+    position: 'absolute',
+    top: 50,
+    left: (width - 224) / 2,
+    zIndex: 100,
   },
   locationButton: {
     position: 'absolute',
-    bottom: 400,
+    bottom: SHEET_HEIGHT + 16,
     right: 16,
-    backgroundColor: Colors.surface,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    backgroundColor: '#FFFFFF',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 5,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 4,
+      },
+    }),
   },
   locationIcon: {
-    fontSize: 24,
+    fontSize: 20,
   },
   loadingOverlay: {
     position: 'absolute',
@@ -554,25 +621,42 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    backgroundColor: 'rgba(241, 239, 232, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 1000,
+  },
+  loadingText: {
+    ...Typography.body,
+    marginTop: 10,
+    color: Colors.textSecondary,
   },
   bottomSheet: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    height: height * 0.6,
-    backgroundColor: Colors.surface,
+    height: SHEET_HEIGHT,
+    backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    padding: Spacing.screenPadding,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 10,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    zIndex: 1000,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 10,
+      },
+      web: {
+        boxShadow: '0px -4px 16px rgba(0,0,0,0.08)',
+      },
+    }),
   },
   sheetHandle: {
     width: 40,
@@ -580,186 +664,172 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.border,
     borderRadius: 2,
     alignSelf: 'center',
-    marginBottom: Spacing.unit(2),
+    marginTop: 10,
+    marginBottom: 8,
+  },
+  sheetContent: {
+    padding: Spacing.screenPadding,
+    paddingTop: 8,
   },
   sheetHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: Spacing.unit(2),
+    marginBottom: 16,
   },
   sheetTitle: {
     ...Typography.title,
     fontSize: 24,
-    marginBottom: Spacing.unit(0.5),
+    color: Colors.textPrimary,
+  },
+  badgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
   },
   sheetSubtitle: {
-    ...Typography.body,
+    ...Typography.caption,
     color: Colors.textSecondary,
   },
   scoreCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
     justifyContent: 'center',
     alignItems: 'center',
   },
   scoreText: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: '700',
-    color: Colors.surface,
+    color: '#FFFFFF',
   },
-  severityBadge: {
-    paddingHorizontal: Spacing.unit(2),
-    paddingVertical: Spacing.unit(1),
-    borderRadius: 8,
-    alignSelf: 'flex-start',
-    marginBottom: Spacing.unit(2),
+  claudeBriefingCard: {
+    backgroundColor: '#E1F5EE',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#1D9E75',
+    padding: 12,
+    marginBottom: 16,
   },
-  severityText: {
+  briefingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 6,
+    gap: 6,
+  },
+  briefingIcon: {
+    fontSize: 16,
+    color: Colors.primary,
+  },
+  briefingTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+  briefingText: {
     ...Typography.body,
-    fontWeight: '700',
-    color: Colors.surface,
+    fontSize: 14,
+    lineHeight: 18,
+    color: Colors.textPrimary,
+  },
+  briefingLoader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 4,
+  },
+  briefingLoadingText: {
+    ...Typography.caption,
+    color: Colors.primary,
   },
   metricsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginHorizontal: -Spacing.unit(1),
-    marginBottom: Spacing.unit(2),
+    marginHorizontal: -6,
+    marginBottom: 16,
   },
   metricCard: {
-    width: (width - Spacing.screenPadding * 2 - Spacing.unit(2)) / 2,
-    margin: Spacing.unit(1),
+    width: (width - Spacing.screenPadding * 2 - 12) / 2,
+    margin: 6,
     alignItems: 'center',
-    padding: Spacing.unit(2),
+    padding: 12,
+    backgroundColor: Colors.primaryLight,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   metricIcon: {
-    fontSize: 32,
-    marginBottom: Spacing.unit(1),
+    fontSize: 28,
+    marginBottom: 4,
   },
   metricLabel: {
     ...Typography.caption,
     color: Colors.textSecondary,
-    marginBottom: Spacing.unit(0.5),
+    marginBottom: 2,
   },
   metricValue: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '700',
     color: Colors.primary,
   },
   metricUnit: {
     ...Typography.caption,
     color: Colors.textSecondary,
-    marginBottom: Spacing.unit(0.5),
+    marginBottom: 4,
   },
   metricStatus: {
-    ...Typography.caption,
+    fontSize: 11,
+    fontWeight: '600',
     color: Colors.textPrimary,
+    textAlign: 'center',
   },
   actions: {
     flexDirection: 'row',
-    gap: Spacing.unit(2),
-    marginBottom: Spacing.unit(2),
+    gap: 12,
+    marginBottom: 16,
   },
-  metaInfo: {
-    alignItems: 'center',
-    paddingTop: Spacing.unit(2),
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
-  },
-  metaText: {
-    ...Typography.caption,
-    color: Colors.textSecondary,
-  },
-  webMapControls: {
-    position: 'absolute',
-    top: Spacing.unit(2),
-    left: Spacing.screenPadding,
-    right: Spacing.screenPadding,
-    zIndex: 10,
-  },
-  webModeToggle: {
-    flexDirection: 'row',
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    padding: Spacing.unit(0.5),
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  webModeButton: {
+  closeBtn: {
     flex: 1,
-    paddingVertical: Spacing.unit(1),
-    paddingHorizontal: Spacing.unit(2),
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  webModeButtonActive: {
-    backgroundColor: Colors.primary,
-  },
-  webModeText: {
-    ...Typography.body,
-    fontWeight: '600',
-    color: Colors.textSecondary,
-    fontSize: 13,
-  },
-  webModeTextActive: {
-    color: Colors.surface,
-  },
-  webNeighborhoodScroll: {
-    position: 'absolute',
-    bottom: Spacing.unit(2),
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    paddingHorizontal: Spacing.screenPadding,
-  },
-  webNeighborhoodChip: {
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    padding: Spacing.unit(1.5),
-    marginRight: Spacing.unit(1),
-    flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  webNeighborhoodChipActive: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.primaryLight,
-  },
-  webNeighborhoodChipName: {
-    ...Typography.body,
-    fontWeight: '600',
-    marginRight: Spacing.unit(1),
-  },
-  webNeighborhoodChipBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    backgroundColor: '#E8E6DE',
+    height: 44,
+    borderRadius: 22,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  webNeighborhoodChipScore: {
-    ...Typography.caption,
-    color: Colors.surface,
+  closeBtnText: {
+    fontSize: 14,
     fontWeight: '700',
-    fontSize: 12,
+    color: Colors.textPrimary,
+  },
+  webMapContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+  },
+  webMapControls: {
+    position: 'absolute',
+    top: 16,
+    left: 16,
+    right: 16,
+    zIndex: 1000,
+  },
+  webModeToggle: {
+    alignSelf: 'center',
+    marginBottom: 10,
   },
   layerFilterContainer: {
-    marginTop: Spacing.unit(1),
+    marginTop: 8,
     maxHeight: 50,
   },
   layerChip: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     marginRight: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    backgroundColor: '#FFFFFF',
     borderRadius: 20,
     borderWidth: 1,
     borderColor: Colors.border,
@@ -769,46 +839,51 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary,
   },
   layerChipText: {
-    fontSize: 14,
+    fontSize: 13,
     color: Colors.textSecondary,
-    fontWeight: '500',
+    fontWeight: '600',
   },
   layerChipTextActive: {
-    color: '#fff',
-    fontWeight: '600',
+    color: '#FFFFFF',
   },
-  legend: {
+  webNeighborhoodScroll: {
     position: 'absolute',
-    bottom: 100,
-    right: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-    padding: 12,
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    bottom: 16,
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+    paddingHorizontal: 16,
   },
-  legendTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 8,
-    color: Colors.text,
-  },
-  legendRow: {
+  webNeighborhoodChip: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 10,
+    marginRight: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 4,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
-  legendDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+  webNeighborhoodChipActive: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primaryLight,
+  },
+  webNeighborhoodChipName: {
+    fontSize: 13,
+    fontWeight: '600',
     marginRight: 8,
+    color: Colors.textPrimary,
   },
-  legendText: {
-    fontSize: 12,
-    color: Colors.textSecondary,
+  webNeighborhoodChipBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  webNeighborhoodChipScore: {
+    fontSize: 11,
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
 });

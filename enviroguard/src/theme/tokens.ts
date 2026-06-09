@@ -1,93 +1,93 @@
 /**
- * Design tokens for EnviroGuard
- * Source: PRD page 8 - Design Language section
- *
- * WHY: Centralized design system ensures visual consistency
- *
- * @fixed Colors - Brand identity colors from PRD, changes require design approval
- * @changeable Spacing multipliers - Can adjust for accessibility needs
- * @fixed Typography sizes - Based on PRD specifications
+ * Design tokens for EnviroGuard v2
+ * Source: Approved UI/UX Design System Specification
  */
 
 // ===== COLORS =====
-// @fixed Brand colors from PRD
 export const Colors = {
-  // Primary brand color
-  primary: '#0F6E56',           // Teal - CTAs, active states
-  primaryMid: '#1D9E75',        // Lighter teal - secondary actions
-  primaryLight: '#E1F5EE',      // Very light teal - backgrounds
-
-  // Semantic colors
-  danger: '#D85A30',            // Red - High risk alerts, severity 4-5
-  warning: '#EF9F27',           // Orange - Medium risk, severity 3
-  safe: '#639922',              // Green - Low risk, severity 1-2
+  // Brand identity colors
+  primary: '#0F6E56',         // Deep teal - CTAs, active states, map heatmap anchor
+  primaryMid: '#1D9E75',      // Medium teal - secondary actions, success states
+  primaryLight: '#E1F5EE',    // Soft mint - card backgrounds, selected rows
+  purple: '#534AB7',          // Forecast page, ML/prediction UI, community mode
+  amber: '#854F0B',           // Warnings, profile section, medium severity
+  danger: '#D85A30',          // High risk, severity 4-5
+  warning: '#EF9F27',         // Severity 3, moderate risk
+  safe: '#639922',            // Severity 1-2, clean readings
 
   // Neutrals
-  textPrimary: '#2C2C2A',       // Almost black - body text
-  textSecondary: '#888780',     // Gray - metadata, helper text
-  border: '#D3D1C7',            // Light gray - card outlines
-  background: '#F1EFE8',        // Warm white - app background
-  surface: '#FFFFFF',           // Pure white - card surfaces
+  background: '#F1EFE8',      // Warm off-white app background (not pure white)
+  surface: '#FFFFFF',         // Card/modal surfaces
+  textPrimary: '#2C2C2A',     // Near-black text
+  textSecondary: '#888780',   // Muted grey text
+  border: '#D3D1C7',          // Subtle border grey
+
+  // Category Colors
+  categories: {
+    noise: '#0F6E56',
+    air: '#1A5F9E',
+    litter: '#854F0B',
+    pollen: '#639922',
+    general: '#D85A30',
+  }
 } as const;
 
 // ===== SPACING =====
-// WHY: 8px base unit creates consistent spacing rhythm
-// CHANGEABLE: Can adjust base unit for different screen densities
 export const Spacing = {
   base: 8,
-  screenPadding: 16,            // Horizontal padding for screens
-  cardPadding: 12,              // Internal card padding (12-16px range)
-  sectionGap: 24,               // Vertical gap between sections
+  screenPadding: 16,
+  cardPadding: 12,
+  sectionGap: 24,
 
   // Helper function to get spacing in multiples of base unit
   unit: (multiplier: number) => multiplier * 8,
 } as const;
 
 // ===== TYPOGRAPHY =====
-// WHY: System fonts for native feel, defined sizes for hierarchy
-// @fixed Font sizes - Based on PRD page 8 specifications
 export const Typography = {
   // Screen titles
   title: {
-    fontSize: 20,
-    lineHeight: 28,
-    fontWeight: '600' as const,
+    fontFamily: undefined, // System default
+    fontSize: 22,
+    fontWeight: '700' as const,
+    color: Colors.textPrimary,
   },
 
   // Section headings
   subtitle: {
+    fontFamily: undefined, // System default
     fontSize: 16,
-    lineHeight: 22,
-    fontWeight: '500' as const,
+    fontWeight: '700' as const,
+    color: Colors.textPrimary,
   },
 
   // Body text
   body: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontFamily: undefined, // System default
+    fontSize: 15,
     fontWeight: '400' as const,
+    color: Colors.textPrimary,
   },
 
-  // Small text (metadata, captions)
+  // Metadata / Caption
   caption: {
+    fontFamily: undefined, // System default
     fontSize: 12,
-    lineHeight: 16,
     fontWeight: '400' as const,
+    color: Colors.textSecondary,
   },
 
-  // For data values (prevents layout shift with number changes)
+  // Numeric values
   tabularNums: {
     fontVariant: ['tabular-nums'] as const,
   },
 } as const;
 
 // ===== COMPONENT SIZES =====
-// @fixed Sizes for consistent component dimensions
 export const ComponentSizes = {
-  riskPillWidth: 80,
+  riskPillWidth: 44,
   riskPillHeight: 28,
-  severityBadgeDiameter: 32,
-  touchTarget: 44,              // Minimum touch target (iOS HIG)
-  kioskTouchTarget: 56,         // Larger for kiosk mode
-  borderRadius: 12,             // Default card border radius
+  severityBadgeDiameter: 24,
+  touchTarget: 44,
+  borderRadius: 12,
 } as const;

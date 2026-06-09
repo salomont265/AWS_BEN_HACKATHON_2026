@@ -1,18 +1,39 @@
-/**
- * Profile Screen - Tab 5
- * Shows user profile and settings
- */
-
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, Switch } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput, Switch, Alert, Platform, TouchableOpacity } from 'react-native';
 import { Colors, Typography, Spacing } from '@/theme/tokens';
-import { fetchProfile, UserProfile } from '../../services/usersService';
-import Card from '../../components/Card';
-import Button from '../../components/Button';
+import Button from '@/components/Button';
+import Card from '@/components/Card';
+import { getUserProfile, updateUserProfile } from '@/services/usersService';
+import { getUserId } from '@/utils/api';
+import * as storage from '@/utils/storage';
 
-export default function ProfileScreen() {
+interface UserProfile {
+  user_id: string;
+  email: string;
+  name?: string;
+  avatar_url?: string;
+  health_preferences?: {
+    allergies?: string[];
+    sensitivities?: string[];
+  };
+  notification_settings?: {
+    enabled: boolean;
+    noise_threshold?: number;
+    aqi_threshold?: number;
+    pollen_threshold?: number;
+  };
+}
+
+export default function ProfileScreen({ navigation }: any) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  const [name, setName] = useState('');
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [noiseThreshold, setNoiseThreshold] = useState('70');
+  const [aqiThreshold, setAqiThreshold] = useState('100');
+  const [pollenThreshold, setPollenThreshold] = useState('50');
 
   useEffect(() => {
     loadProfile();
@@ -20,362 +41,299 @@ export default function ProfileScreen() {
 
   const loadProfile = async () => {
     try {
-      // In fake data mode, this returns fake user
-      const data = await fetchProfile('user_001');
+      setLoading(true);
+      const userId = await getUserId();
+      const data = await getUserProfile(userId);
       setProfile(data);
+
+      setName(data.name || '');
+      setNotificationsEnabled(!!data.thresholds);
+      setNoiseThreshold(data.thresholds?.noise_db?.toString() || '70');
+      setAqiThreshold(data.thresholds?.aqi?.toString() || '100');
+      setPollenThreshold(data.thresholds?.pollen_index?.toString() || '50');
     } catch (error) {
       console.error('Failed to load profile:', error);
+      if (Platform.OS === 'web') {
+        alert('Could not load profile');
+      } else {
+        Alert.alert('Error', 'Could not load profile');
+      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      const userId = await getUserId();
+
+      console.log('Saving profile:', { userId, name, notificationsEnabled });
+
+      const updates: any = {};
+
+      // Update thresholds if notifications enabled
+      if (notificationsEnabled) {
+        updates.thresholds = {
+          noise_db: parseInt(noiseThreshold),
+          aqi: parseInt(aqiThreshold),
+          pollen_index: parseInt(pollenThreshold),
+        };
+      }
+
+      console.log('Sending updates:', updates);
+
+      await updateUserProfile(userId, updates);
+
+      console.log('Save successful, reloading profile...');
+
+      // Reload profile to show saved changes
+      await loadProfile();
+
+      console.log('✅ Profile saved and reloaded!');
+
+      // Force re-render
+      setProfile({ ...profile, name });
+    } catch (error) {
+      console.error('❌ Failed to save profile:', error);
+      alert('Could not save profile: ' + (error as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await storage.removeItem('jwt_token');
+      await storage.removeItem('user_id');
+      console.log('Logged out successfully');
+
+      // Navigate to login (assumes you have a login screen)
+      if (navigation.navigate) {
+        navigation.navigate('Login');
+      } else {
+        // Refresh page for web
+        if (Platform.OS === 'web') {
+          window.location.reload();
+        }
+      }
+    } catch (error) {
+      console.error('Logout failed:', error);
+      alert('Could not log out');
     }
   };
 
   if (loading) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={Colors.primary} />
+        <Text>Loading...</Text>
       </View>
     );
   }
-
-  if (!profile) {
-    return (
-      <View style={styles.centerContainer}>
-        <Text style={styles.errorText}>Failed to load profile</Text>
-      </View>
-    );
-  }
-
-  const healthConditions = [];
-  if (profile.health.asthma) healthConditions.push('Asthma');
-  if (profile.health.copd) healthConditions.push('COPD');
-  if (profile.health.pollen_allergy) healthConditions.push('Pollen Allergy');
-  if (profile.health.noise_sensitivity) healthConditions.push('Noise Sensitivity');
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>👤</Text>
-          </View>
-          <View style={styles.userInfo}>
-            <Text style={styles.name}>{profile.email.split('@')[0]}</Text>
-            <Text style={styles.email}>{profile.email}</Text>
-          </View>
-        </View>
-        <TouchableOpacity style={styles.editButton}>
-          <Text style={styles.editButtonText}>Edit Profile</Text>
-        </TouchableOpacity>
+        <Text style={styles.headerTitle}>👤 Profile</Text>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <Card style={styles.section}>
+        <Text style={styles.sectionTitle}>Basic Information</Text>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Health Conditions</Text>
-        <Card style={styles.healthCard}>
-          <View style={styles.chipContainer}>
-            {healthConditions.length > 0 ? (
-              healthConditions.map((condition) => (
-                <View key={condition} style={styles.chip}>
-                  <Text style={styles.chipText}>{condition}</Text>
-                </View>
-              ))
-            ) : (
-              <Text style={styles.emptyText}>No conditions listed</Text>
-            )}
-          </View>
-          <View style={styles.ageGroupRow}>
-            <Text style={styles.ageGroupLabel}>Age Group:</Text>
-            <Text style={styles.ageGroupValue}>{profile.health.age_group}</Text>
-          </View>
-        </Card>
-      </View>
+        <Text style={styles.label}>Email</Text>
+        <Text style={styles.emailText}>{profile?.email}</Text>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Alert Thresholds</Text>
-        <Card>
-          <View style={styles.thresholdRow}>
-            <View style={styles.thresholdLeft}>
-              <Text style={styles.thresholdIcon}>💨</Text>
-              <Text style={styles.thresholdLabel}>AQI Threshold</Text>
-            </View>
-            <Text style={styles.thresholdValue}>{profile.thresholds.aqi}</Text>
-          </View>
-          <View style={styles.thresholdRow}>
-            <View style={styles.thresholdLeft}>
-              <Text style={styles.thresholdIcon}>🔊</Text>
-              <Text style={styles.thresholdLabel}>Noise Level</Text>
-            </View>
-            <Text style={styles.thresholdValue}>{profile.thresholds.noise_db} dB</Text>
-          </View>
-          <View style={[styles.thresholdRow, styles.thresholdRowLast]}>
-            <View style={styles.thresholdLeft}>
-              <Text style={styles.thresholdIcon}>🌸</Text>
-              <Text style={styles.thresholdLabel}>Pollen Index</Text>
-            </View>
-            <Text style={styles.thresholdValue}>{profile.thresholds.pollen_index}</Text>
-          </View>
-        </Card>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Saved Neighborhoods</Text>
-        {profile.neighborhoods.map((neighborhood) => (
-          <View key={neighborhood.id} style={styles.locationCard}>
-            <Text style={styles.locationIcon}>📍</Text>
-            <View style={styles.locationInfo}>
-              <Text style={styles.locationTitle}>{neighborhood.label}</Text>
-              <Text style={styles.locationAddress}>
-                {neighborhood.lat.toFixed(4)}, {neighborhood.lng.toFixed(4)}
-              </Text>
-            </View>
-          </View>
-        ))}
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Notification Preferences</Text>
-        <View style={styles.prefRow}>
-          <Text style={styles.prefLabel}>🔊 Noise Alerts</Text>
-          <Text style={styles.prefValue}>{profile.notification_prefs.noise ? 'ON' : 'OFF'}</Text>
-        </View>
-        <View style={styles.prefRow}>
-          <Text style={styles.prefLabel}>💨 Air Quality Alerts</Text>
-          <Text style={styles.prefValue}>{profile.notification_prefs.air ? 'ON' : 'OFF'}</Text>
-        </View>
-        <View style={styles.prefRow}>
-          <Text style={styles.prefLabel}>🗑️ Litter Alerts</Text>
-          <Text style={styles.prefValue}>{profile.notification_prefs.litter ? 'ON' : 'OFF'}</Text>
-        </View>
-        <View style={styles.prefRow}>
-          <Text style={styles.prefLabel}>🌸 Pollen Alerts</Text>
-          <Text style={styles.prefValue}>{profile.notification_prefs.pollen ? 'ON' : 'OFF'}</Text>
-        </View>
-        <Text style={styles.metaText}>
-          Quiet Hours: {profile.notification_prefs.quiet_hours.start} - {profile.notification_prefs.quiet_hours.end}
-        </Text>
-      </View>
-
-      <View style={styles.section}>
-        <Button
-          title="Sign Out"
-          variant="danger"
-          fullWidth
-          icon="👋"
-          onPress={() => console.log('Sign out')}
+        <Text style={styles.label}>Name</Text>
+        <TextInput
+          style={styles.input}
+          value={name}
+          onChangeText={setName}
+          placeholder="Enter your name"
+          placeholderTextColor={Colors.textSecondary}
         />
-      </View>
+      </Card>
 
-      <View style={styles.infoBox}>
-        <Text style={styles.infoTitle}>✅ Connected to User Service</Text>
-        <Text style={styles.infoText}>• Loaded profile from fake data</Text>
-        <Text style={styles.infoText}>• User ID: {profile.user_id}</Text>
-      </View>
+      <Card style={styles.section}>
+        <Text style={styles.sectionTitle}>Health Preferences</Text>
+        <Text style={styles.description}>
+          Set your sensitivities to personalize alerts and recommendations
+        </Text>
+
+        <Text style={styles.comingSoon}>Coming soon: Allergy tracking</Text>
+      </Card>
+
+      <Card style={styles.section}>
+        <Text style={styles.sectionTitle}>Notification Settings</Text>
+
+        <View style={styles.settingRow}>
+          <Text style={styles.settingLabel}>Enable Alerts</Text>
+          <Switch
+            value={notificationsEnabled}
+            onValueChange={setNotificationsEnabled}
+            trackColor={{ false: Colors.border, true: Colors.primary }}
+          />
+        </View>
+
+        {notificationsEnabled && (
+          <>
+            <Text style={styles.thresholdTitle}>Alert me when levels exceed:</Text>
+
+            <View style={styles.thresholdRow}>
+              <Text style={styles.thresholdLabel}>🔊 Noise (dB)</Text>
+              <TextInput
+                style={styles.thresholdInput}
+                value={noiseThreshold}
+                onChangeText={setNoiseThreshold}
+                keyboardType="numeric"
+              />
+            </View>
+
+            <View style={styles.thresholdRow}>
+              <Text style={styles.thresholdLabel}>💨 AQI</Text>
+              <TextInput
+                style={styles.thresholdInput}
+                value={aqiThreshold}
+                onChangeText={setAqiThreshold}
+                keyboardType="numeric"
+              />
+            </View>
+
+            <View style={styles.thresholdRow}>
+              <Text style={styles.thresholdLabel}>🌸 Pollen</Text>
+              <TextInput
+                style={styles.thresholdInput}
+                value={pollenThreshold}
+                onChangeText={setPollenThreshold}
+                keyboardType="numeric"
+              />
+            </View>
+          </>
+        )}
+      </Card>
+
+      <Button
+        title="Save Changes"
+        onPress={handleSave}
+        loading={saving}
+        fullWidth
+      />
+
+      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+        <Text style={styles.logoutText}>🚪 Log Out</Text>
+      </TouchableOpacity>
 
       <View style={{ height: Spacing.unit(4) }} />
-      </ScrollView>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.primaryLight,
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.background,
-  },
-  errorText: {
-    ...Typography.body,
-    color: Colors.danger,
-  },
-  header: {
-    backgroundColor: Colors.primary,
-    paddingTop: Spacing.unit(6),
-    paddingBottom: Spacing.unit(3),
-    paddingHorizontal: Spacing.screenPadding,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.unit(2),
-  },
-  avatar: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: Colors.surface,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: Spacing.unit(2),
-  },
-  avatarText: {
-    fontSize: 36,
-  },
-  userInfo: {
-    flex: 1,
-  },
-  name: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: Colors.surface,
-    marginBottom: Spacing.unit(0.5),
-  },
-  email: {
-    ...Typography.body,
-    color: Colors.primaryLight,
-  },
-  editButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingVertical: Spacing.unit(1.5),
-    paddingHorizontal: Spacing.unit(3),
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  editButtonText: {
-    ...Typography.body,
-    fontWeight: '600',
-    color: Colors.surface,
+    backgroundColor: Colors.primaryLight,
   },
   content: {
-    flex: 1,
+    padding: Spacing.screenPadding,
+  },
+  header: {
+    marginBottom: Spacing.unit(3),
+  },
+  headerTitle: {
+    ...Typography.title,
+    fontSize: 28,
   },
   section: {
-    paddingHorizontal: Spacing.screenPadding,
-    marginTop: Spacing.unit(3),
+    marginBottom: Spacing.unit(2),
   },
   sectionTitle: {
-    ...Typography.title,
-    marginBottom: Spacing.unit(2),
-  },
-  healthCard: {
-    backgroundColor: Colors.primaryLight,
-    borderColor: Colors.primary,
-  },
-  chipContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: Spacing.unit(2),
-    marginHorizontal: -Spacing.unit(0.5),
-  },
-  chip: {
-    backgroundColor: Colors.surface,
-    paddingHorizontal: Spacing.unit(2),
-    paddingVertical: Spacing.unit(1),
-    margin: Spacing.unit(0.5),
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: Colors.primary,
-  },
-  chipText: {
-    ...Typography.body,
-    color: Colors.primary,
+    fontSize: 18,
     fontWeight: '600',
+    marginBottom: Spacing.unit(2),
   },
-  emptyText: {
+  description: {
     ...Typography.body,
     color: Colors.textSecondary,
-    fontStyle: 'italic',
+    marginBottom: Spacing.unit(2),
   },
-  ageGroupRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  ageGroupLabel: {
-    ...Typography.body,
-    marginRight: Spacing.unit(1),
-  },
-  ageGroupValue: {
-    ...Typography.body,
+  label: {
+    fontSize: 14,
     fontWeight: '600',
-    color: Colors.primary,
+    color: Colors.text,
+    marginBottom: Spacing.unit(0.5),
+    marginTop: Spacing.unit(1.5),
+  },
+  emailText: {
+    ...Typography.body,
+    color: Colors.textSecondary,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 8,
+    padding: Spacing.unit(1.5),
+    fontSize: 16,
+    color: Colors.text,
+  },
+  settingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: Spacing.unit(1),
+  },
+  settingLabel: {
+    fontSize: 16,
+    color: Colors.text,
+  },
+  thresholdTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.text,
+    marginTop: Spacing.unit(2),
+    marginBottom: Spacing.unit(1),
   },
   thresholdRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: Spacing.unit(2),
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  thresholdRowLast: {
-    borderBottomWidth: 0,
-  },
-  thresholdLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  thresholdIcon: {
-    fontSize: 24,
-    marginRight: Spacing.unit(1.5),
+    marginBottom: Spacing.unit(1.5),
   },
   thresholdLabel: {
-    ...Typography.body,
+    fontSize: 16,
+    color: Colors.text,
   },
-  thresholdValue: {
-    ...Typography.subtitle,
-    fontWeight: '700',
-    color: Colors.primary,
+  thresholdInput: {
+    borderWidth: 1,
+    borderColor: Colors.border,
+    borderRadius: 8,
+    padding: Spacing.unit(1),
+    width: 80,
+    textAlign: 'center',
+    fontSize: 16,
+    color: Colors.text,
   },
-  locationCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: Spacing.unit(2),
-    backgroundColor: Colors.background,
-    borderRadius: 12,
-    marginBottom: Spacing.unit(1),
-  },
-  locationIcon: {
-    fontSize: 32,
-    marginRight: Spacing.unit(2),
-  },
-  locationInfo: {
-    flex: 1,
-  },
-  locationTitle: {
-    ...Typography.subtitle,
-    marginBottom: Spacing.unit(0.5),
-  },
-  locationAddress: {
-    ...Typography.body,
+  comingSoon: {
+    ...Typography.caption,
     color: Colors.textSecondary,
+    fontStyle: 'italic',
   },
-  prefRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: Spacing.unit(1.5),
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  prefLabel: {
-    ...Typography.body,
-  },
-  prefValue: {
-    ...Typography.body,
-    fontWeight: '600',
-    color: Colors.primary,
-  },
-  infoBox: {
-    margin: Spacing.screenPadding,
+  logoutButton: {
+    marginTop: Spacing.unit(3),
     padding: Spacing.unit(2),
     backgroundColor: Colors.primaryLight,
-    borderRadius: 12,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: Colors.primary,
-    marginBottom: Spacing.unit(4),
+    borderColor: Colors.danger,
+    alignItems: 'center',
   },
-  infoTitle: {
-    ...Typography.subtitle,
-    marginBottom: Spacing.unit(1),
-    color: Colors.primary,
-  },
-  infoText: {
-    ...Typography.body,
-    marginBottom: Spacing.unit(0.5),
+  logoutText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.danger,
   },
 });

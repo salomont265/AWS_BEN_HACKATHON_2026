@@ -81,6 +81,9 @@ const styles = StyleSheet.create({
   container: {
     minWidth: 160,
     marginRight: Spacing.unit(2),
+    backgroundColor: Colors.surface,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   header: {
     flexDirection: 'row',
@@ -109,6 +112,7 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '700',
     color: Colors.textPrimary,
+    fontVariant: ['tabular-nums'],
   },
   unit: {
     ...Typography.body,

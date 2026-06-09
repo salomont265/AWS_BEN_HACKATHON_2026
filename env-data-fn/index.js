@@ -160,22 +160,90 @@ async function fetchPollen(lat, lng) {
 
 async function fetchWeather(lat, lng) {
   const owKey = process.env.OPENWEATHER_API_KEY;
-  try {
-    const data = await httpGet(
-      `https://api.openweathermap.org/data/3.0/onecall?lat=${lat}&lon=${lng}&appid=${owKey}&exclude=minutely,alerts&units=imperial`
-    );
-    const current = data?.current || {};
-    return {
-      temp: current.temp || 0,
-      humidity: current.humidity || 0,
-      wind_speed: current.wind_speed || 0,
-      uv_index: current.uvi || 0,
-      description: current.weather?.[0]?.description || "Unknown",
-    };
-  } catch (err) {
-    console.error("OpenWeather onecall fetch failed:", err.message);
-    return null;
+
+  if (!owKey) {
+    console.error("No OpenWeather API key configured - using mock data");
+    return generateMockWeather();
   }
+
+  try {
+    // Fetch current weather (free tier)
+    const current = await httpGet(
+      `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&appid=${owKey}&units=imperial`
+    );
+
+    // If we got an error code, use mock data
+    if (current.cod && current.cod !== 200) {
+      console.error("OpenWeather API error:", current.message);
+      return generateMockWeather();
+    }
+
+    // Fetch 5-day/3-hour forecast (free tier)
+    const forecastData = await httpGet(
+      `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lng}&appid=${owKey}&units=imperial&cnt=8`
+    );
+
+    const currentWeather = {
+      temp: current.main?.temp || 0,
+      feels_like: current.main?.feels_like || 0,
+      humidity: current.main?.humidity || 0,
+      wind_speed: current.wind?.speed || 0,
+      wind_deg: current.wind?.deg || 0,
+      uv: 0, // Not available in free tier
+      description: current.weather?.[0]?.description || "Unknown",
+      icon: current.weather?.[0]?.icon || "01d",
+    };
+
+    // Convert 3-hour forecast to hourly (8 periods = 24 hours)
+    const forecast = (forecastData.list || []).slice(0, 8).map(item => ({
+      timestamp: new Date(item.dt * 1000).toISOString(),
+      temp: item.main?.temp || 0,
+      feels_like: item.main?.feels_like || 0,
+      humidity: item.main?.humidity || 0,
+      wind_speed: item.wind?.speed || 0,
+      wind_deg: item.wind?.deg || 0,
+      uv: 0, // Not available in free tier
+      description: item.weather?.[0]?.description || "Unknown",
+    }));
+
+    return { current: currentWeather, forecast };
+  } catch (err) {
+    console.error("OpenWeather fetch failed:", err.message);
+    return generateMockWeather();
+  }
+}
+
+function generateMockWeather() {
+  const hour = new Date().getHours();
+  const baseTemp = 72;
+  const currentTemp = baseTemp + Math.sin((hour - 6) / 12 * Math.PI) * 15; // Warmer midday
+
+  return {
+    current: {
+      temp: Math.round(currentTemp),
+      feels_like: Math.round(currentTemp - 2),
+      humidity: 65,
+      wind_speed: 8,
+      wind_deg: 180,
+      uv: hour >= 10 && hour <= 16 ? 6 : 0,
+      description: "partly cloudy",
+      icon: "02d",
+    },
+    forecast: Array.from({ length: 8 }, (_, i) => {
+      const forecastHour = (hour + i * 3) % 24;
+      const forecastTemp = baseTemp + Math.sin((forecastHour - 6) / 12 * Math.PI) * 15;
+      return {
+        timestamp: new Date(Date.now() + i * 3 * 3600000).toISOString(),
+        temp: Math.round(forecastTemp),
+        feels_like: Math.round(forecastTemp - 2),
+        humidity: 65,
+        wind_speed: 8,
+        wind_deg: 180,
+        uv: forecastHour >= 10 && forecastHour <= 16 ? 6 : 0,
+        description: "partly cloudy",
+      };
+    }),
+  };
 }
 
 async function fetchNoiseComplaints(neighborhood) {

@@ -79,3 +79,13 @@ export async function savePushToken(
   if (USE_FAKE_DATA) return;
   await apiPost('/push-token', { user_id: userId, token });
 }
+
+// Profile screen helpers (simpler interface)
+export async function getUserProfile(userId: string | null): Promise<any> {
+  if (!userId) throw new Error('No user ID');
+  return apiGet(`/users/${userId}`);
+}
+
+export async function updateUserProfile(userId: string, updates: any): Promise<void> {
+  await apiPut(`/users/${userId}`, updates);
+}
