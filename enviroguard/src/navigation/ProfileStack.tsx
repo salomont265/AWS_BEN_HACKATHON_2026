@@ -4,15 +4,14 @@ import ProfileScreenNew from '../screens/profile/ProfileScreenNew';
 
 const Stack = createStackNavigator();
 
-export default function ProfileStack({ onLogout }: { onLogout?: () => void }) {
+export default function ProfileStack() {
   return (
     <Stack.Navigator>
       <Stack.Screen
         name="Profile"
+        component={ProfileScreenNew}
         options={{ headerShown: false }}
-      >
-        {() => <ProfileScreenNew onLogout={onLogout} />}
-      </Stack.Screen>
+      />
     </Stack.Navigator>
   );
 }

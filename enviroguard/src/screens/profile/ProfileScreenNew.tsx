@@ -48,7 +48,7 @@ interface UserProfile {
   created_at: string;
 }
 
-export default function ProfileScreenNew({ onLogout }: { onLogout?: () => void }) {
+export default function ProfileScreenNew() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -81,11 +81,8 @@ export default function ProfileScreenNew({ onLogout }: { onLogout?: () => void }
           style: 'destructive',
           onPress: async () => {
             await clearAuthToken();
-            if (onLogout) {
-              onLogout();
-            } else {
-              Alert.alert('Logged Out', 'Please restart the app');
-            }
+            // App will restart and show login screen
+            Alert.alert('Logged Out', 'Please restart the app');
           },
         },
       ]
