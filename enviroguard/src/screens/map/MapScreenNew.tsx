@@ -555,9 +555,13 @@ export default function MapScreenNew() {
             <View style={styles.actions}>
               <TouchableOpacity
                 style={styles.closeBtn}
-                onPress={() => setShowBottomSheet(false)}
+                activeOpacity={0.7}
+                onPress={() => {
+                  console.log('Close button pressed');
+                  setShowBottomSheet(false);
+                }}
               >
-                <Text style={styles.closeBtnText}>Close</Text>
+                <Text style={styles.closeBtnText}>✕ Close</Text>
               </TouchableOpacity>
             </View>
           </ScrollView>
@@ -787,6 +791,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     marginBottom: 16,
+    zIndex: 10,
   },
   closeBtn: {
     flex: 1,

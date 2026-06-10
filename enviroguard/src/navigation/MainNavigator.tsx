@@ -168,7 +168,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
   );
 }
 
-export default function MainNavigator() {
+export default function MainNavigator({ onLogout }: { onLogout?: () => void }) {
   return (
     <Tab.Navigator
       tabBar={(props) => <CustomTabBar {...props} />}
@@ -181,7 +181,9 @@ export default function MainNavigator() {
       <Tab.Screen name="HealthTab" component={HealthStack} />
       <Tab.Screen name="ReportTab" component={ReportStack} />
       <Tab.Screen name="CommunityTab" component={CommunityStack} />
-      <Tab.Screen name="ProfileTab" component={ProfileStack} />
+      <Tab.Screen name="ProfileTab">
+        {() => <ProfileStack onLogout={onLogout} />}
+      </Tab.Screen>
     </Tab.Navigator>
   );
 }

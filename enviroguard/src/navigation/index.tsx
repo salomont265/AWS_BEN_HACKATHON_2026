@@ -39,6 +39,10 @@ export default function RootNavigator() {
     setIsLoggedIn(true);
   };
 
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -51,7 +55,9 @@ export default function RootNavigator() {
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {isLoggedIn ? (
-          <Stack.Screen name="Main" component={MainNavigator} />
+          <Stack.Screen name="Main">
+            {() => <MainNavigator onLogout={handleLogout} />}
+          </Stack.Screen>
         ) : (
           <Stack.Screen name="Login">
             {() => <LoginScreen onLoginSuccess={handleLoginSuccess} />}
